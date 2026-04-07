@@ -9,7 +9,7 @@ import {
 } from 'firebase/auth';
 import {
   CheckCircle2, AlertCircle, Lock, ShieldCheck,
-  User, Key, LogOut, Download, Search, RefreshCw, LayoutDashboard, ClipboardCheck, Info, X, Bell, Clock, Award, ChevronRight, Tickets
+  User, Key, LogOut, Download, Search, RefreshCw, LayoutDashboard, ClipboardCheck, Info, X, Bell, Clock, Award, ChevronRight, Tickets, FileText, UserCheck
 } from 'lucide-react';
 
 // --- Safe Environment Variable Access ---
@@ -41,6 +41,29 @@ const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : safeEnv("VITE_APP_ID", "p0as");
 const NAME_SALT = safeEnv("VITE_NAME_SALT", "APPLIEDALPHA_020823");
 
+// --- 출석 유형 매핑 정의 (Global) ---
+const ATTENDANCE_LABELS = {
+  'FIELD': '현장 출석',
+  'ASSIGNMENT': '과제 인정',
+  'MANUAL': '수동 출석(조교 확인)',
+  'ABSENT': '미출석',
+  'LATE': '지각',
+  'EXCUSED': '공결(사유 인정)',
+  'PENDING': '확인 중',
+  'NONE': '기록 없음'
+};
+
+const ATTENDANCE_THEME = {
+  'FIELD': { color: 'text-green-700 bg-green-50 border-green-200', icon: <UserCheck className="w-3.5 h-3.5" /> },
+  'ASSIGNMENT': { color: 'text-blue-700 bg-blue-50 border-blue-200', icon: <FileText className="w-3.5 h-3.5" /> },
+  'MANUAL': { color: 'text-purple-700 bg-purple-50 border-purple-200', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+  'ABSENT': { color: 'text-red-700 bg-red-50 border-red-200', icon: <X className="w-3.5 h-3.5" /> },
+  'LATE': { color: 'text-yellow-700 bg-yellow-50 border-yellow-200', icon: <Clock className="w-3.5 h-3.5" /> },
+  'EXCUSED': { color: 'text-slate-700 bg-slate-50 border-slate-200', icon: <AlertCircle className="w-3.5 h-3.5" /> },
+  'PENDING': { color: 'text-orange-700 bg-orange-50 border-orange-200', icon: <Clock className="w-3.5 h-3.5" /> },
+  'NONE': { color: 'text-gray-400 bg-transparent border-gray-100', icon: <AlertCircle className="w-3.5 h-3.5" /> }
+};
+
 // --- Utils ---
 const generateHash = async (text) => {
   const msgUint8 = new TextEncoder().encode(text + NAME_SALT);
@@ -67,6 +90,20 @@ const formatBoldText = (text) => {
     }
     return part;
   });
+};
+
+// --- 공용 컴포넌트: 출석 상태 배지 ---
+const StatusBadge = ({ type }) => {
+  const upperType = type?.toUpperCase() || 'NONE';
+  const label = ATTENDANCE_LABELS[upperType] || ATTENDANCE_LABELS['NONE'];
+  const theme = ATTENDANCE_THEME[upperType] || ATTENDANCE_THEME['NONE'];
+
+  return (
+    <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-bold shadow-sm ${theme.color}`}>
+      {theme.icon}
+      {label}
+    </div>
+  );
 };
 
 export default function App() {
@@ -299,7 +336,7 @@ function CheckView({ onBack }) {
           <h2 className="text-2xl font-black text-slate-800 mb-6">{result.name} 학생</h2>
           <div className="space-y-2 mb-8 text-left">
             <ResultRow label="현재 점수" value={`${result.score}점`} isBold />
-            <ResultRow label="출석 유형" value={result.attendance_type === 'NONE' ? '미출석' : result.attendance_type} />
+            <ResultRow label="출석 유형" value={<StatusBadge type={result.attendance_type} />} />
             <ResultRow label="처리 시각" value={formatTime(result.attended_at)} />
           </div>
           <button onClick={onBack} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all">메인 화면으로</button>
@@ -360,10 +397,11 @@ function AdminDashboard({ onExit, systemStatus }) {
   };
 
   const manualApprove = async (sId, type) => {
+    const upperType = type.toUpperCase();
     try {
       const ref = doc(db, 'artifacts', appId, 'public', 'data', 'students', sId);
-      await updateDoc(ref, { is_attended: true, score: 5, attendance_type: type, attended_at: serverTimestamp() });
-      await setDoc(doc(collection(db, 'artifacts', appId, 'public', 'data', 'logs')), { studentId: sId, type: 'MANUAL', time: serverTimestamp(), desc: `관리자 승인 (${type})` });
+      await updateDoc(ref, { is_attended: true, score: 5, attendance_type: upperType, attended_at: serverTimestamp() });
+      await setDoc(doc(collection(db, 'artifacts', appId, 'public', 'data', 'logs')), { studentId: sId, type: 'MANUAL', time: serverTimestamp(), desc: `관리자 승인 (${upperType})` });
       showToast(`학생 **${sId}** 승인 완료.`);
     } catch (err) {
       showToast('승인 실패: ' + err.message, 'error');
@@ -394,19 +432,10 @@ function AdminDashboard({ onExit, systemStatus }) {
       .sort((a, b) => b.is_used - a.is_used);
   }, [tokens, searchTerm]);
 
-  const getTypeBadge = (type) => {
-    switch (type) {
-      case 'FIELD': return <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[9px] font-black uppercase">직접 출석</span>;
-      case 'TASK': return <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[9px] font-black uppercase">과제 완료</span>;
-      case 'MANUAL': return <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full text-[9px] font-black uppercase">수동 승인</span>;
-      default: return <span className="bg-slate-100 text-slate-400 px-2 py-0.5 rounded-full text-[9px] font-black uppercase">미출석</span>;
-    }
-  };
-
   const exportCSV = () => {
     const header = "\ufeff학번,성명,출석여부,유형,점수,인증시간\n";
     const body = students.map(s => (
-      `${s.student_id},${s.name},${s.is_attended ? 'O' : 'X'},${s.attendance_type},${s.score},${s.attended_at?.toDate()?.toLocaleString() || '-'}`
+      `${s.student_id},${s.name},${s.is_attended ? 'O' : 'X'},${ATTENDANCE_LABELS[s.attendance_type?.toUpperCase()] || s.attendance_type},${s.score},${s.attended_at?.toDate()?.toLocaleString() || '-'}`
     )).join('\n');
     const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -477,14 +506,14 @@ function AdminDashboard({ onExit, systemStatus }) {
                       <tr key={s.id} className={`group hover:bg-slate-50/80 transition-colors ${s.trial_count >= 3 ? 'bg-red-50/30' : ''}`}>
                         <td className="px-8 py-4 font-mono font-bold text-slate-500">{s.student_id}</td>
                         <td className="px-8 py-4 font-bold text-slate-700">{s.name}</td>
-                        <td className="px-8 py-4">{getTypeBadge(s.attendance_type)}</td>
+                        <td className="px-8 py-4"><StatusBadge type={s.attendance_type} /></td>
                         <td className="px-8 py-4 text-center font-black text-indigo-600">{s.score}</td>
                         <td className="px-8 py-4 text-center font-black text-slate-300">{s.trial_count}</td>
                         <td className="px-8 py-4 text-right space-x-2">
                           {!s.is_attended ? (
                             <div className="inline-flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button onClick={() => manualApprove(s.id, 'MANUAL')} className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-xl hover:bg-indigo-100">수동</button>
-                              <button onClick={() => manualApprove(s.id, 'TASK')} className="text-[9px] font-black bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl hover:bg-blue-100">과제</button>
+                              <button onClick={() => manualApprove(s.id, 'ASSIGNMENT')} className="text-[9px] font-black bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl hover:bg-blue-100">과제</button>
                             </div>
                           ) : <span className="text-[10px] font-mono text-slate-300 font-bold">{formatTime(s.attended_at, false)}</span>}
                           {s.trial_count > 0 && <button onClick={() => resetLock(s.id)} className="p-2 text-red-300 hover:text-red-500 transition-all"><RefreshCw className="w-3.5 h-3.5" /></button>}
@@ -618,6 +647,6 @@ const LockedCard = ({ onReset }) => (
 const ResultRow = ({ label, value, isBold = false }) => (
   <div className="flex justify-between items-center px-2 py-2 border-b border-slate-50 last:border-0">
     <span className="text-xs text-slate-400 font-bold">{label}</span>
-    <span className={`text-sm ${isBold ? 'font-black text-indigo-600' : 'font-bold text-slate-700'}`}>{value}</span>
+    <div className={`text-sm ${isBold ? 'font-black text-indigo-600' : 'font-bold text-slate-700'}`}>{value}</div>
   </div>
 );

@@ -257,7 +257,7 @@ function StudentView({ systemStatus }) {
         <div className="inline-block p-2.5 bg-indigo-600 rounded-2xl mb-2 shadow-lg shadow-indigo-100">
           <ShieldCheck className="w-6 h-6 text-white" />
         </div>
-        <h1 className="text-xl font-black text-slate-800 tracking-tight">강의 출석 시스템</h1>
+        <h1 className="text-xl font-black text-slate-800 tracking-tight">K-MOOC 특강 출결 시스템</h1>
       </div>
 
       {systemStatus === 'OPEN' ? (
@@ -290,7 +290,7 @@ function StudentView({ systemStatus }) {
             {systemStatus === 'PRE' ? '아직 시작 전입니다.' : '출석이 종료되었습니다.'}
           </h2>
           <p className="text-sm text-slate-400 mb-6 leading-relaxed">
-            {systemStatus === 'PRE' ? '강의 시작 후 토큰을 배부받아 등록해주세요.' : '현재는 출석 결과 조회만 가능합니다.'}
+            {systemStatus === 'PRE' ? '토큰을 배부받아 등록해주세요.' : '현재는 출석 결과 조회만 가능합니다.'}
           </p>
           <button onClick={() => { window.location.href = '/check'; }} className="w-full bg-indigo-50 text-indigo-600 font-black py-3.5 rounded-xl hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2 shadow-sm">
             출석 결과 조회하기 <ChevronRight className="w-4 h-4" />
@@ -341,7 +341,7 @@ function CheckView({ onBack }) {
     <div className="max-w-md mx-auto h-[100dvh] px-6 flex flex-col justify-center py-6">
       <div className="text-center mb-8 shrink-0">
         <div className="inline-block p-3.5 bg-slate-100 rounded-3xl mb-3"><ClipboardCheck className="w-7 h-7 text-slate-600" /></div>
-        <h1 className="text-2xl font-black tracking-tight text-slate-800">출석 결과 조회</h1>
+        <h1 className="text-2xl font-black tracking-tight text-slate-800">K-MOOC 특강 출결 조회</h1>
         <p className="text-sm text-slate-400 mt-1 font-bold">본인의 정보를 입력하세요.</p>
       </div>
       {status === 'found' ? (

@@ -41,7 +41,6 @@ const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : safeEnv("VITE_APP_ID", "p0as");
 const NAME_SALT = safeEnv("VITE_NAME_SALT", "APPLIEDALPHA_020823");
 
-// --- 출석 유형 매핑 정의 (Global) ---
 const ATTENDANCE_LABELS = {
   'FIELD': '현장 출석',
   'ASSIGNMENT': '과제 인정',
@@ -92,7 +91,20 @@ const formatBoldText = (text) => {
   });
 };
 
-// --- 공용 컴포넌트: 출석 상태 배지 ---
+// --- Client-side Throttling ---
+const THROTTLE_TIME = 2000;
+const checkRateLimit = (actionKey) => {
+  const now = Date.now();
+  const storageKey = `p0as_last_action_${actionKey}`;
+  const lastAction = localStorage.getItem(storageKey);
+
+  if (lastAction && now - parseInt(lastAction) < THROTTLE_TIME) {
+    const remaining = Math.ceil((THROTTLE_TIME - (now - parseInt(lastAction))) / 1000);
+    throw new Error(`너무 빠른 요청입니다. **${remaining}초** 후 다시 시도해주세요.`);
+  }
+  localStorage.setItem(storageKey, now.toString());
+};
+
 const StatusBadge = ({ type }) => {
   const upperType = type?.toUpperCase() || 'NONE';
   const label = ATTENDANCE_LABELS[upperType] || ATTENDANCE_LABELS['NONE'];
@@ -183,6 +195,8 @@ function StudentView({ systemStatus }) {
     setError('');
 
     try {
+      checkRateLimit('submit');
+
       const studentId = form.studentId.trim();
       const name = form.name.trim();
       const tokenInput = form.token.trim();
@@ -305,6 +319,8 @@ function CheckView({ onBack }) {
     setStatus('loading');
     setError('');
     try {
+      checkRateLimit('lookup');
+
       const studentId = form.studentId.trim();
       const name = form.name.trim();
       const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId);

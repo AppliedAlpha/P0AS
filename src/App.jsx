@@ -5,11 +5,12 @@ import {
   onSnapshot, query, runTransaction, serverTimestamp, setDoc
 } from 'firebase/firestore';
 import {
-  getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken
+  getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken,
+  GoogleAuthProvider, signInWithPopup // <--- 구글 로그인 관련 추가
 } from 'firebase/auth';
 import {
   CheckCircle2, AlertCircle, Lock, ShieldCheck,
-  User, Key, LogOut, Download, Search, RefreshCw, LayoutDashboard, ClipboardCheck, Info, X, Bell, Clock, Award, ChevronRight, Tickets, FileText, UserCheck
+  User, Key, LogOut, Download, Search, RefreshCw, LayoutDashboard, ClipboardCheck, Info, X, Bell, Clock, Award, ChevronRight, Tickets, FileText, UserCheck, ShieldAlert, LogIn
 } from 'lucide-react';
 
 // --- Safe Environment Variable Access ---
@@ -168,7 +169,7 @@ export default function App() {
     );
   }
 
-  if (path === '/manage') return <AdminDashboard systemStatus={systemStatus} onExit={() => { window.location.href = '/'; }} />;
+  if (path === '/manage') return <AdminDashboard systemStatus={systemStatus} user={user} onExit={() => { window.location.href = '/'; }} />;
   if (path === '/check') return <CheckView onBack={() => { window.location.href = '/'; }} />;
 
   return (
@@ -190,17 +191,14 @@ function StudentView({ systemStatus }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (systemStatus !== 'OPEN') return;
-
     setIsSubmitting(true);
     setError('');
 
     try {
       checkRateLimit('submit');
-
       const studentId = form.studentId.trim();
       const name = form.name.trim();
       const tokenInput = form.token.trim();
-
       const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId);
       const studentSnap = await getDoc(studentRef);
       const inputHash = await generateHash(name);
@@ -208,40 +206,32 @@ function StudentView({ systemStatus }) {
       if (!studentSnap.exists() || studentSnap.data().name_hash !== inputHash) {
         throw new Error('학번 혹은 이름을 다시 확인해주세요.');
       }
-
       const sData = studentSnap.data();
-
       if (sData.trial_count >= 3) { setStep('locked'); return; }
       if (sData.is_attended) { throw new Error('이미 출결 처리된 학생입니다.'); }
 
       const tokenRef = doc(db, 'artifacts', appId, 'public', 'data', 'tokens', tokenInput);
-
       const txResult = await runTransaction(db, async (transaction) => {
         const tSnap = await transaction.get(tokenRef);
-
         if (!tSnap.exists() || tSnap.data().is_used) {
           const nextTrial = (sData.trial_count || 0) + 1;
           transaction.update(studentRef, { trial_count: nextTrial });
           return { success: false, nextTrial };
         }
-
         transaction.update(studentRef, {
           is_attended: true, score: 5, attendance_type: 'FIELD', attended_at: serverTimestamp()
         });
         transaction.update(tokenRef, { is_used: true, used_by: studentId, used_at: serverTimestamp() });
-
         const logRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'));
         transaction.set(logRef, {
           studentId, type: 'SUCCESS', time: serverTimestamp(), desc: `출석 성공 (토큰: ${tokenInput})`
         });
-
         return { success: true };
       });
 
       if (!txResult.success) {
         throw new Error(`유효하지 않은 토큰입니다. (**${txResult.nextTrial}/3회** 실패)`);
       }
-
       setResultData({ ...sData, is_attended: true, attendance_type: 'FIELD', score: 5 });
       setStep('success');
     } catch (err) {
@@ -259,7 +249,6 @@ function StudentView({ systemStatus }) {
         </div>
         <h1 className="text-xl font-black text-slate-800 tracking-tight">K-MOOC 특강 출결 시스템</h1>
       </div>
-
       {systemStatus === 'OPEN' ? (
         <div className="shrink-0">
           {step === 'input' && (
@@ -297,7 +286,6 @@ function StudentView({ systemStatus }) {
           </button>
         </div>
       )}
-
       <footer className="mt-4 text-center shrink-0">
         <button onClick={() => { window.location.href = '/check'; }} className="px-6 py-2 bg-slate-100 text-slate-500 font-bold rounded-xl hover:bg-slate-200 transition-all text-[11px] border border-slate-200 shadow-sm">
           나의 <b>출석 결과</b> 확인하기
@@ -320,7 +308,6 @@ function CheckView({ onBack }) {
     setError('');
     try {
       checkRateLimit('lookup');
-
       const studentId = form.studentId.trim();
       const name = form.name.trim();
       const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', studentId);
@@ -374,7 +361,7 @@ function CheckView({ onBack }) {
 }
 
 // --- Admin Dashboard ---
-function AdminDashboard({ onExit, systemStatus }) {
+function AdminDashboard({ onExit, systemStatus, user }) {
   const [students, setStudents] = useState([]);
   const [tokens, setTokens] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -382,20 +369,65 @@ function AdminDashboard({ onExit, systemStatus }) {
   const [activeView, setActiveView] = useState('STUDENTS');
   const [activeTab, setActiveTab] = useState('ALL');
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [hasPermission, setHasPermission] = useState(true); // 권한 상태 추적
+
+  const handleAdminLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      showToast("관리자 인증 성공!");
+      setHasPermission(true); // 로그인 성공 시 권한 상태 초기화
+    } catch (err) {
+      showToast("인증 실패: " + err.message, "error");
+    }
+  };
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-    const qStudents = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'));
-    const unsubscribeStudents = onSnapshot(qStudents, (snap) => setStudents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
-    const qTokens = query(collection(db, 'artifacts', appId, 'public', 'data', 'tokens'));
-    const unsubscribeTokens = onSnapshot(qTokens, (snap) => setTokens(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
-    const qLogs = query(collection(db, 'artifacts', appId, 'public', 'data', 'logs'));
-    const unsubscribeLogs = onSnapshot(qLogs, (snap) => {
-      const sorted = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => (b.time?.seconds || 0) - (a.time?.seconds || 0));
-      setLogs(sorted.slice(0, 20));
-    });
-    return () => { unsubscribeStudents(); unsubscribeTokens(); unsubscribeLogs(); };
-  }, []);
+    // [중요] 사용자가 없거나 '익명' 상태면 아예 리스너를 시작하지 않음
+    // 보안 규칙이 관리자에게만 허용되어 있다면, 익명 상태의 쿼리는 100% 에러를 유발함
+    if (!user || user.isAnonymous) {
+      setStudents([]);
+      setTokens([]);
+      setLogs([]);
+      return;
+    }
+
+    const studentsRef = collection(db, 'artifacts', appId, 'public', 'data', 'students');
+    const tokensRef = collection(db, 'artifacts', appId, 'public', 'data', 'tokens');
+    const logsRef = collection(db, 'artifacts', appId, 'public', 'data', 'logs');
+
+    // 리스너 성공/실패 콜백을 명확히 분리
+    const unsubscribeStudents = onSnapshot(query(studentsRef),
+      (snap) => {
+        setStudents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setHasPermission(true);
+      },
+      (err) => {
+        console.error("Students Listener Error:", err);
+        if (err.code === 'permission-denied') setHasPermission(false);
+      }
+    );
+
+    const unsubscribeTokens = onSnapshot(query(tokensRef),
+      (snap) => setTokens(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))),
+      (err) => console.error("Tokens Listener Error:", err)
+    );
+
+    const unsubscribeLogs = onSnapshot(query(logsRef),
+      (snap) => {
+        const sorted = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+          .sort((a, b) => (b.time?.seconds || 0) - (a.time?.seconds || 0));
+        setLogs(sorted.slice(0, 20));
+      },
+      (err) => console.error("Logs Listener Error:", err)
+    );
+
+    return () => {
+      unsubscribeStudents();
+      unsubscribeTokens();
+      unsubscribeLogs();
+    };
+  }, [user]); // user가 바뀔 때마다(익명->구글) 리스너 재설정
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
@@ -420,7 +452,7 @@ function AdminDashboard({ onExit, systemStatus }) {
       await setDoc(doc(collection(db, 'artifacts', appId, 'public', 'data', 'logs')), { studentId: sId, type: 'MANUAL', time: serverTimestamp(), desc: `관리자 승인 (${upperType})` });
       showToast(`학생 **${sId}** 승인 완료.`);
     } catch (err) {
-      showToast('승인 실패: ' + err.message, 'error');
+      showToast('승인 실패 (권한 없음): ' + err.message, 'error');
     }
   };
 
@@ -430,7 +462,7 @@ function AdminDashboard({ onExit, systemStatus }) {
       await updateDoc(ref, { trial_count: 0 });
       showToast(`학생 **${sId}** 잠금 해제 완료.`);
     } catch (err) {
-      showToast('잠금 해제 실패: ' + err.message, 'error');
+      showToast('잠금 해제 실패 (권한 없음): ' + err.message, 'error');
     }
   };
 
@@ -474,10 +506,35 @@ function AdminDashboard({ onExit, systemStatus }) {
       <header className="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shadow-sm z-20 shrink-0">
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white"><LayoutDashboard className="w-5 h-5" /></div>
-          <h1 className="font-black text-xl tracking-tight text-slate-800 uppercase">p0as <span className="font-light text-slate-300">Management</span></h1>
+          <div>
+            <h1 className="font-black text-xl tracking-tight text-slate-800 uppercase">p0as <span className="font-light text-slate-300">Management</span></h1>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              {(!user || user.isAnonymous) ? (
+                <span className="text-[9px] text-orange-500 font-bold flex items-center gap-1 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100 italic">
+                  <ShieldAlert className="w-2.5 h-2.5" /> Login Required
+                </span>
+              ) : !hasPermission ? (
+                <span className="text-[9px] text-red-500 font-bold flex items-center gap-1 bg-red-50 px-1.5 py-0.5 rounded border border-red-100 italic">
+                  <ShieldAlert className="w-2.5 h-2.5" /> Unauthorized ID
+                </span>
+              ) : (
+                <span className="text-[9px] text-blue-600 font-bold flex items-center gap-1 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 uppercase tracking-tighter">
+                  <ShieldCheck className="w-2.5 h-2.5" /> Admin Authenticated
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center gap-6">
+          {(!user || user.isAnonymous) && (
+            <button
+              onClick={handleAdminLogin}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+            >
+              <LogIn className="w-3 h-3" /> 관리자 구글 로그인
+            </button>
+          )}
           <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200/50">
             {['STUDENTS', 'TOKENS'].map(v => (
               <button key={v} onClick={() => setActiveView(v)} className={`px-5 py-1.5 text-[10px] font-black rounded-xl transition-all ${activeView === v ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>{v === 'STUDENTS' ? '학생 명단' : '토큰 현황'}</button>
@@ -494,70 +551,101 @@ function AdminDashboard({ onExit, systemStatus }) {
       </header>
 
       <main className="flex-1 flex overflow-hidden">
-        <section className="flex-1 flex flex-col p-8 overflow-hidden">
-          <div className="flex gap-4 mb-6 bg-white p-4 rounded-[2rem] border border-slate-200 shadow-sm shrink-0">
-            <div className="relative flex-1">
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-              <input type="text" placeholder={activeView === 'STUDENTS' ? "학번 혹은 성명 검색..." : "토큰 번호 혹은 사용자 검색..."} className="w-full pl-12 pr-6 py-3 bg-slate-50/50 border-none rounded-2xl outline-none text-sm focus:bg-white transition-all shadow-inner font-bold" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-            </div>
-            {activeView === 'STUDENTS' && (
-              <div className="flex gap-1 bg-slate-50 p-1 rounded-2xl">
-                {['ALL', 'ATTENDED', 'LOCKED'].map(t => (
-                  <button key={t} onClick={() => setActiveTab(t)} className={`px-5 py-2 text-[10px] font-black rounded-xl transition-all ${activeTab === t ? 'bg-white text-slate-800 shadow-sm border border-slate-100' : 'text-slate-400'}`}>{t}</button>
-                ))}
+        {(!user || user.isAnonymous) ? (
+          <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 text-slate-400 p-8 text-center">
+            <Lock className="w-12 h-12 mb-4 opacity-20" />
+            <h3 className="text-lg font-bold text-slate-600 mb-2">데이터 접근 제한</h3>
+            <p className="max-w-xs text-sm leading-relaxed mb-6">
+              관리자 페이지의 데이터를 조회하려면<br /><b>관리자 구글 로그인</b>이 필요합니다.
+            </p>
+            <button
+              onClick={handleAdminLogin}
+              className="bg-white border border-slate-200 px-6 py-3 rounded-2xl text-slate-600 font-bold text-sm shadow-sm hover:bg-slate-100 transition-all flex items-center gap-2"
+            >
+              <LogIn className="w-4 h-4" /> 지금 로그인하기
+            </button>
+          </div>
+        ) : !hasPermission ? (
+          <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 text-slate-400 p-8 text-center animate-in fade-in duration-500">
+            <ShieldAlert className="w-12 h-12 mb-4 text-red-200" />
+            <h3 className="text-lg font-bold text-red-600 mb-2">권한이 없는 계정입니다</h3>
+            <p className="max-w-xs text-sm leading-relaxed mb-6">
+              로그인된 이메일({user.email})은<br />등록된 관리자 UID가 아닙니다.
+            </p>
+            <button
+              onClick={() => auth.signOut()}
+              className="text-indigo-600 font-bold text-xs border-b border-indigo-200 pb-0.5"
+            >
+              다른 계정으로 로그인
+            </button>
+          </div>
+        ) : (
+          <section className="flex-1 flex flex-col p-8 overflow-hidden">
+            {/* ... (기존 테이블 렌더링 로직 동일) ... */}
+            <div className="flex gap-4 mb-6 bg-white p-4 rounded-[2rem] border border-slate-200 shadow-sm shrink-0">
+              <div className="relative flex-1">
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                <input type="text" placeholder={activeView === 'STUDENTS' ? "학번 혹은 성명 검색..." : "토큰 번호 혹은 사용자 검색..."} className="w-full pl-12 pr-6 py-3 bg-slate-50/50 border-none rounded-2xl outline-none text-sm focus:bg-white transition-all shadow-inner font-bold" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
               </div>
-            )}
-            <button onClick={exportCSV} className="px-5 py-2 bg-green-600 text-white text-[10px] font-black rounded-xl flex items-center gap-2 hover:bg-green-700 transition-all shadow-lg active:scale-95"><Download className="w-4 h-4" /> CSV</button>
-          </div>
-
-          <div className="bg-white border rounded-[2.5rem] overflow-hidden flex-1 flex flex-col shadow-sm">
-            <div className="overflow-y-auto custom-scrollbar">
-              {activeView === 'STUDENTS' ? (
-                <table className="w-full text-left text-sm border-collapse">
-                  <thead className="bg-slate-50 backdrop-blur-md text-slate-400 font-bold text-[10px] tracking-widest sticky top-0 border-b z-10 uppercase">
-                    <tr><th className="px-8 py-5">학번</th><th className="px-8 py-5">성명</th><th className="px-8 py-5">상태/유형</th><th className="px-8 py-5 text-center">점수</th><th className="px-8 py-5 text-center">시도</th><th className="px-8 py-5 text-right">관리</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 font-medium">
-                    {filteredStudents.map(s => (
-                      <tr key={s.id} className={`group hover:bg-slate-50/80 transition-colors ${s.trial_count >= 3 ? 'bg-red-50/30' : ''}`}>
-                        <td className="px-8 py-4 font-mono font-bold text-slate-500">{s.student_id}</td>
-                        <td className="px-8 py-4 font-bold text-slate-700">{s.name}</td>
-                        <td className="px-8 py-4"><StatusBadge type={s.attendance_type} /></td>
-                        <td className="px-8 py-4 text-center font-black text-indigo-600">{s.score}</td>
-                        <td className="px-8 py-4 text-center font-black text-slate-300">{s.trial_count}</td>
-                        <td className="px-8 py-4 text-right space-x-2">
-                          {!s.is_attended ? (
-                            <div className="inline-flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => manualApprove(s.id, 'MANUAL')} className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-xl hover:bg-indigo-100">수동</button>
-                              <button onClick={() => manualApprove(s.id, 'ASSIGNMENT')} className="text-[9px] font-black bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl hover:bg-blue-100">과제</button>
-                            </div>
-                          ) : <span className="text-[10px] font-mono text-slate-300 font-bold">{formatTime(s.attended_at, false)}</span>}
-                          {s.trial_count > 0 && <button onClick={() => resetLock(s.id)} className="p-2 text-red-300 hover:text-red-500 transition-all"><RefreshCw className="w-3.5 h-3.5" /></button>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <table className="w-full text-left text-sm border-collapse">
-                  <thead className="bg-slate-50 backdrop-blur-md text-slate-400 font-bold text-[10px] tracking-widest sticky top-0 border-b z-10 uppercase">
-                    <tr><th className="px-8 py-5">토큰 번호</th><th className="px-8 py-5">사용 상태</th><th className="px-8 py-5">사용자(학번)</th><th className="px-8 py-5 text-right">사용 시각</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 font-medium">
-                    {filteredTokens.map(t => (
-                      <tr key={t.id} className={`hover:bg-slate-50/80 transition-colors ${t.is_used ? '' : 'bg-slate-50/20'}`}>
-                        <td className="px-8 py-4 font-mono font-black text-indigo-600 tracking-widest">{t.id}</td>
-                        <td className="px-8 py-4"><span className={`inline-flex px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter ${t.is_used ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-400'}`}>{t.is_used ? 'Used' : 'Unused'}</span></td>
-                        <td className="px-8 py-4 font-bold text-slate-700">{t.used_by || "-"}</td>
-                        <td className="px-8 py-4 text-right font-mono text-xs text-slate-400 font-bold">{formatTime(t.used_at)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {activeView === 'STUDENTS' && (
+                <div className="flex gap-1 bg-slate-50 p-1 rounded-2xl">
+                  {['ALL', 'ATTENDED', 'LOCKED'].map(t => (
+                    <button key={t} onClick={() => setActiveTab(t)} className={`px-5 py-2 text-[10px] font-black rounded-xl transition-all ${activeTab === t ? 'bg-white text-slate-800 shadow-sm border border-slate-100' : 'text-slate-400'}`}>{t}</button>
+                  ))}
+                </div>
               )}
+              <button onClick={exportCSV} className="px-5 py-2 bg-green-600 text-white text-[10px] font-black rounded-xl flex items-center gap-2 hover:bg-green-700 transition-all shadow-lg active:scale-95"><Download className="w-4 h-4" /> CSV</button>
             </div>
-          </div>
-        </section>
+
+            <div className="bg-white border rounded-[2.5rem] overflow-hidden flex-1 flex flex-col shadow-sm">
+              <div className="overflow-y-auto custom-scrollbar">
+                {activeView === 'STUDENTS' ? (
+                  <table className="w-full text-left text-sm border-collapse">
+                    <thead className="bg-slate-50 backdrop-blur-md text-slate-400 font-bold text-[10px] tracking-widest sticky top-0 border-b z-10 uppercase">
+                      <tr><th className="px-8 py-5">학번</th><th className="px-8 py-5">성명</th><th className="px-8 py-5">상태/유형</th><th className="px-8 py-5 text-center">점수</th><th className="px-8 py-5 text-center">시도</th><th className="px-8 py-5 text-right">관리</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50 font-medium">
+                      {filteredStudents.map(s => (
+                        <tr key={s.id} className={`group hover:bg-slate-50/80 transition-colors ${s.trial_count >= 3 ? 'bg-red-50/30' : ''}`}>
+                          <td className="px-8 py-4 font-mono font-bold text-slate-500">{s.student_id}</td>
+                          <td className="px-8 py-4 font-bold text-slate-700">{s.name}</td>
+                          <td className="px-8 py-4"><StatusBadge type={s.attendance_type} /></td>
+                          <td className="px-8 py-4 text-center font-black text-indigo-600">{s.score}</td>
+                          <td className="px-8 py-4 text-center font-black text-slate-300">{s.trial_count}</td>
+                          <td className="px-8 py-4 text-right space-x-2">
+                            {!s.is_attended ? (
+                              <div className="inline-flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => manualApprove(s.id, 'MANUAL')} className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-xl hover:bg-indigo-100">수동</button>
+                                <button onClick={() => manualApprove(s.id, 'ASSIGNMENT')} className="text-[9px] font-black bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl hover:bg-blue-100">과제</button>
+                              </div>
+                            ) : <span className="text-[10px] font-mono text-slate-300 font-bold">{formatTime(s.attended_at, false)}</span>}
+                            {s.trial_count > 0 && <button onClick={() => resetLock(s.id)} className="p-2 text-red-300 hover:text-red-500 transition-all"><RefreshCw className="w-3.5 h-3.5" /></button>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <table className="w-full text-left text-sm border-collapse">
+                    <thead className="bg-slate-50 backdrop-blur-md text-slate-400 font-bold text-[10px] tracking-widest sticky top-0 border-b z-10 uppercase">
+                      <tr><th className="px-8 py-5">토큰 번호</th><th className="px-8 py-5">사용 상태</th><th className="px-8 py-5">사용자(학번)</th><th className="px-8 py-5 text-right">사용 시각</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50 font-medium">
+                      {filteredTokens.map(t => (
+                        <tr key={t.id} className={`hover:bg-slate-50/80 transition-colors ${t.is_used ? '' : 'bg-slate-50/20'}`}>
+                          <td className="px-8 py-4 font-mono font-black text-indigo-600 tracking-widest">{t.id}</td>
+                          <td className="px-8 py-4"><span className={`inline-flex px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter ${t.is_used ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-400'}`}>{t.is_used ? 'Used' : 'Unused'}</span></td>
+                          <td className="px-8 py-4 font-bold text-slate-700">{t.used_by || "-"}</td>
+                          <td className="px-8 py-4 text-right font-mono text-xs text-slate-400 font-bold">{formatTime(t.used_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
 
         <aside className="w-96 bg-white border-l border-slate-200 flex flex-col shrink-0 font-medium">
           <div className="p-8 border-b border-slate-100 shrink-0">

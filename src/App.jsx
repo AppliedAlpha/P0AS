@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import {
   getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken,
-  GoogleAuthProvider, signInWithPopup // <--- 구글 로그인 관련 추가
+  GoogleAuthProvider, signInWithPopup
 } from 'firebase/auth';
 import {
   CheckCircle2, AlertCircle, Lock, ShieldCheck,
@@ -92,7 +92,6 @@ const formatBoldText = (text) => {
   });
 };
 
-// --- Client-side Throttling ---
 const THROTTLE_TIME = 2000;
 const checkRateLimit = (actionKey) => {
   const now = Date.now();
@@ -181,7 +180,7 @@ export default function App() {
 }
 
 // --- Student View ---
-function StudentView({ systemStatus }) {
+function StudentView({ systemStatus: currentSystemStatus }) {
   const [step, setStep] = useState('input');
   const [form, setForm] = useState({ studentId: '', name: '', token: '' });
   const [error, setError] = useState('');
@@ -190,12 +189,18 @@ function StudentView({ systemStatus }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (systemStatus !== 'OPEN') return;
     setIsSubmitting(true);
     setError('');
 
     try {
       checkRateLimit('submit');
+
+      const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'attendance_status');
+      const settingsSnap = await getDoc(settingsRef);
+      if (!settingsSnap.exists() || settingsSnap.data().value !== 'OPEN') {
+        throw new Error('죄송합니다. 현재는 출석이 진행 중인 상태가 아닙니다.');
+      }
+
       const studentId = form.studentId.trim();
       const name = form.name.trim();
       const tokenInput = form.token.trim();
@@ -206,22 +211,36 @@ function StudentView({ systemStatus }) {
       if (!studentSnap.exists() || studentSnap.data().name_hash !== inputHash) {
         throw new Error('학번 혹은 이름을 다시 확인해주세요.');
       }
+
       const sData = studentSnap.data();
       if (sData.trial_count >= 3) { setStep('locked'); return; }
       if (sData.is_attended) { throw new Error('이미 출결 처리된 학생입니다.'); }
 
       const tokenRef = doc(db, 'artifacts', appId, 'public', 'data', 'tokens', tokenInput);
+
       const txResult = await runTransaction(db, async (transaction) => {
         const tSnap = await transaction.get(tokenRef);
+
         if (!tSnap.exists() || tSnap.data().is_used) {
           const nextTrial = (sData.trial_count || 0) + 1;
           transaction.update(studentRef, { trial_count: nextTrial });
+
+          const logRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'));
+          transaction.set(logRef, {
+            studentId,
+            type: 'FAILURE',
+            time: serverTimestamp(),
+            desc: `토큰 인증 실패 (입력값: ${tokenInput}) - 현재 시도: ${nextTrial}/3`
+          });
+
           return { success: false, nextTrial };
         }
+
         transaction.update(studentRef, {
           is_attended: true, score: 5, attendance_type: 'FIELD', attended_at: serverTimestamp()
         });
         transaction.update(tokenRef, { is_used: true, used_by: studentId, used_at: serverTimestamp() });
+
         const logRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'));
         transaction.set(logRef, {
           studentId, type: 'SUCCESS', time: serverTimestamp(), desc: `출석 성공 (토큰: ${tokenInput})`
@@ -249,7 +268,7 @@ function StudentView({ systemStatus }) {
         </div>
         <h1 className="text-xl font-black text-slate-800 tracking-tight">K-MOOC 특강 출결 시스템</h1>
       </div>
-      {systemStatus === 'OPEN' ? (
+      {currentSystemStatus === 'OPEN' ? (
         <div className="shrink-0">
           {step === 'input' && (
             <div className="bg-white p-5 rounded-[1.5rem] shadow-sm border border-slate-200">
@@ -276,10 +295,10 @@ function StudentView({ systemStatus }) {
             <Info className="w-6 h-6 text-slate-400" />
           </div>
           <h2 className="text-lg font-bold text-slate-800 mb-2">
-            {systemStatus === 'PRE' ? '아직 시작 전입니다.' : '출석이 종료되었습니다.'}
+            {currentSystemStatus === 'PRE' ? '아직 시작 전입니다.' : '출석이 종료되었습니다.'}
           </h2>
           <p className="text-sm text-slate-400 mb-6 leading-relaxed">
-            {systemStatus === 'PRE' ? '토큰을 배부받아 등록해주세요.' : '현재는 출석 결과 조회만 가능합니다.'}
+            {currentSystemStatus === 'PRE' ? '토큰을 배부받아 등록해주세요.' : '현재는 출석 결과 조회만 가능합니다.'}
           </p>
           <button onClick={() => { window.location.href = '/check'; }} className="w-full bg-indigo-50 text-indigo-600 font-black py-3.5 rounded-xl hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2 shadow-sm">
             출석 결과 조회하기 <ChevronRight className="w-4 h-4" />
@@ -366,25 +385,24 @@ function AdminDashboard({ onExit, systemStatus, user }) {
   const [tokens, setTokens] = useState([]);
   const [logs, setLogs] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [logSearchTerm, setLogSearchTerm] = useState('');
   const [activeView, setActiveView] = useState('STUDENTS');
   const [activeTab, setActiveTab] = useState('ALL');
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
-  const [hasPermission, setHasPermission] = useState(true); // 권한 상태 추적
+  const [hasPermission, setHasPermission] = useState(true);
 
   const handleAdminLogin = async () => {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
       showToast("관리자 인증 성공!");
-      setHasPermission(true); // 로그인 성공 시 권한 상태 초기화
+      setHasPermission(true);
     } catch (err) {
       showToast("인증 실패: " + err.message, "error");
     }
   };
 
   useEffect(() => {
-    // [중요] 사용자가 없거나 '익명' 상태면 아예 리스너를 시작하지 않음
-    // 보안 규칙이 관리자에게만 허용되어 있다면, 익명 상태의 쿼리는 100% 에러를 유발함
     if (!user || user.isAnonymous) {
       setStudents([]);
       setTokens([]);
@@ -396,38 +414,21 @@ function AdminDashboard({ onExit, systemStatus, user }) {
     const tokensRef = collection(db, 'artifacts', appId, 'public', 'data', 'tokens');
     const logsRef = collection(db, 'artifacts', appId, 'public', 'data', 'logs');
 
-    // 리스너 성공/실패 콜백을 명확히 분리
-    const unsubscribeStudents = onSnapshot(query(studentsRef),
-      (snap) => {
-        setStudents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        setHasPermission(true);
-      },
-      (err) => {
-        console.error("Students Listener Error:", err);
-        if (err.code === 'permission-denied') setHasPermission(false);
-      }
+    const unsubscribeStudents = onSnapshot(query(studentsRef), (snap) => {
+      setStudents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setHasPermission(true);
+    }, (err) => { if (err.code === 'permission-denied') setHasPermission(false); }
+    );
+    const unsubscribeTokens = onSnapshot(query(tokensRef), (snap) => setTokens(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+    const unsubscribeLogs = onSnapshot(query(logsRef), (snap) => {
+      const sorted = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        .sort((a, b) => (b.time?.seconds || 0) - (a.time?.seconds || 0));
+      setLogs(sorted);
+    }
     );
 
-    const unsubscribeTokens = onSnapshot(query(tokensRef),
-      (snap) => setTokens(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))),
-      (err) => console.error("Tokens Listener Error:", err)
-    );
-
-    const unsubscribeLogs = onSnapshot(query(logsRef),
-      (snap) => {
-        const sorted = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-          .sort((a, b) => (b.time?.seconds || 0) - (a.time?.seconds || 0));
-        setLogs(sorted.slice(0, 20));
-      },
-      (err) => console.error("Logs Listener Error:", err)
-    );
-
-    return () => {
-      unsubscribeStudents();
-      unsubscribeTokens();
-      unsubscribeLogs();
-    };
-  }, [user]); // user가 바뀔 때마다(익명->구글) 리스너 재설정
+    return () => { unsubscribeStudents(); unsubscribeTokens(); unsubscribeLogs(); };
+  }, [user]);
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
@@ -451,9 +452,7 @@ function AdminDashboard({ onExit, systemStatus, user }) {
       await updateDoc(ref, { is_attended: true, score: 5, attendance_type: upperType, attended_at: serverTimestamp() });
       await setDoc(doc(collection(db, 'artifacts', appId, 'public', 'data', 'logs')), { studentId: sId, type: 'MANUAL', time: serverTimestamp(), desc: `관리자 승인 (${upperType})` });
       showToast(`학생 **${sId}** 승인 완료.`);
-    } catch (err) {
-      showToast('승인 실패 (권한 없음): ' + err.message, 'error');
-    }
+    } catch (err) { showToast('승인 실패 (권한 없음)', 'error'); }
   };
 
   const resetLock = async (sId) => {
@@ -461,9 +460,7 @@ function AdminDashboard({ onExit, systemStatus, user }) {
       const ref = doc(db, 'artifacts', appId, 'public', 'data', 'students', sId);
       await updateDoc(ref, { trial_count: 0 });
       showToast(`학생 **${sId}** 잠금 해제 완료.`);
-    } catch (err) {
-      showToast('잠금 해제 실패 (권한 없음): ' + err.message, 'error');
-    }
+    } catch (err) { showToast('잠금 해제 실패 (권한 없음)', 'error'); }
   };
 
   const filteredStudents = useMemo(() => {
@@ -479,6 +476,11 @@ function AdminDashboard({ onExit, systemStatus, user }) {
     return tokens.filter(t => (t.id || "").includes(searchTerm) || (t.used_by || "").includes(searchTerm))
       .sort((a, b) => b.is_used - a.is_used);
   }, [tokens, searchTerm]);
+
+  const filteredLogs = useMemo(() => {
+    return logs.filter(log => (log.studentId || "").includes(logSearchTerm))
+      .slice(0, 50); // 최신 50개만 표시
+  }, [logs, logSearchTerm]);
 
   const exportCSV = () => {
     const header = "\ufeff학번,성명,출석여부,유형,점수,인증시간\n";
@@ -528,10 +530,7 @@ function AdminDashboard({ onExit, systemStatus, user }) {
 
         <div className="flex items-center gap-6">
           {(!user || user.isAnonymous) && (
-            <button
-              onClick={handleAdminLogin}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
-            >
+            <button onClick={handleAdminLogin} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">
               <LogIn className="w-3 h-3" /> 관리자 구글 로그인
             </button>
           )}
@@ -555,33 +554,20 @@ function AdminDashboard({ onExit, systemStatus, user }) {
           <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 text-slate-400 p-8 text-center">
             <Lock className="w-12 h-12 mb-4 opacity-20" />
             <h3 className="text-lg font-bold text-slate-600 mb-2">데이터 접근 제한</h3>
-            <p className="max-w-xs text-sm leading-relaxed mb-6">
-              관리자 페이지의 데이터를 조회하려면<br /><b>관리자 구글 로그인</b>이 필요합니다.
-            </p>
-            <button
-              onClick={handleAdminLogin}
-              className="bg-white border border-slate-200 px-6 py-3 rounded-2xl text-slate-600 font-bold text-sm shadow-sm hover:bg-slate-100 transition-all flex items-center gap-2"
-            >
+            <p className="max-w-xs text-sm leading-relaxed mb-6">관리자 페이지의 데이터를 조회하려면<br /><b>관리자 구글 로그인</b>이 필요합니다.</p>
+            <button onClick={handleAdminLogin} className="bg-white border border-slate-200 px-6 py-3 rounded-2xl text-slate-600 font-bold text-sm shadow-sm hover:bg-slate-100 transition-all flex items-center gap-2">
               <LogIn className="w-4 h-4" /> 지금 로그인하기
             </button>
           </div>
         ) : !hasPermission ? (
-          <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 text-slate-400 p-8 text-center animate-in fade-in duration-500">
+          <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 text-slate-400 p-8 text-center">
             <ShieldAlert className="w-12 h-12 mb-4 text-red-200" />
             <h3 className="text-lg font-bold text-red-600 mb-2">권한이 없는 계정입니다</h3>
-            <p className="max-w-xs text-sm leading-relaxed mb-6">
-              로그인된 이메일({user.email})은<br />등록된 관리자 UID가 아닙니다.
-            </p>
-            <button
-              onClick={() => auth.signOut()}
-              className="text-indigo-600 font-bold text-xs border-b border-indigo-200 pb-0.5"
-            >
-              다른 계정으로 로그인
-            </button>
+            <p className="max-w-xs text-sm leading-relaxed mb-6">로그인된 이메일({user.email})은<br />등록된 관리자 UID가 아닙니다.</p>
+            <button onClick={() => auth.signOut()} className="text-indigo-600 font-bold text-xs border-b border-indigo-200 pb-0.5">다른 계정으로 로그인</button>
           </div>
         ) : (
           <section className="flex-1 flex flex-col p-8 overflow-hidden">
-            {/* ... (기존 테이블 렌더링 로직 동일) ... */}
             <div className="flex gap-4 mb-6 bg-white p-4 rounded-[2rem] border border-slate-200 shadow-sm shrink-0">
               <div className="relative flex-1">
                 <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
@@ -651,9 +637,21 @@ function AdminDashboard({ onExit, systemStatus, user }) {
           <div className="p-8 border-b border-slate-100 shrink-0">
             <h3 className="font-black text-slate-800 flex items-center gap-3"><span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>Live Activity</h3>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Real-time events</p>
+
+            <div className="relative mt-4">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+              <input
+                type="text"
+                placeholder="학번으로 로그 검색..."
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] focus:bg-white outline-none font-bold"
+                value={logSearchTerm}
+                onChange={e => setLogSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
+
           <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-slate-50/20">
-            {logs.map(log => (
+            {filteredLogs.map(log => (
               <div key={log.id} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm animate-in slide-in-from-right-4 duration-300">
                 <div className="flex justify-between items-start mb-2 text-slate-800">
                   <span className={`px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-tighter ${log.type === 'SUCCESS' ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-orange-50 text-orange-600 border border-orange-100'}`}>{log.type}</span>
@@ -683,19 +681,11 @@ const GlobalStyle = () => (
   <style dangerouslySetInnerHTML={{
     __html: `
     @import url('https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap');
-    
-    .p0as-root, .p0as-root *, body, html {
-      font-family: 'Gowun Batang', serif !important;
-    }
-
+    .p0as-root, .p0as-root *, body, html { font-family: 'Gowun Batang', serif !important; }
     .custom-scrollbar::-webkit-scrollbar { width: 4px; } 
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } 
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-    
-    input, button, select, textarea {
-      font-family: 'Gowun Batang', serif !important;
-    }
-
+    input, button, select, textarea { font-family: 'Gowun Batang', serif !important; }
     b, strong { font-weight: 700; }
   `}} />
 );
@@ -705,11 +695,7 @@ const InputGroup = ({ label, icon, value, onChange, placeholder, isToken = false
     <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 mb-1 tracking-widest">{label}</label>
     <div className="relative">
       <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">{icon}</div>
-      <input
-        type="text" required placeholder={placeholder}
-        className={`w-full pl-11 pr-4 py-2.5 rounded-2xl border border-slate-100 bg-slate-50/50 focus:bg-white focus:ring-4 focus:ring-indigo-50 outline-none transition-all ${isToken ? 'text-center tracking-[0.5em] font-mono text-lg font-black' : 'font-bold text-sm'}`}
-        value={value} onChange={e => onChange(e.target.value)}
-      />
+      <input type="text" required placeholder={placeholder} className={`w-full pl-11 pr-4 py-2.5 rounded-2xl border border-slate-100 bg-slate-50/50 focus:bg-white focus:ring-4 focus:ring-indigo-50 outline-none transition-all ${isToken ? 'text-center tracking-[0.5em] font-mono text-lg font-black' : 'font-bold text-sm'}`} value={value} onChange={e => onChange(e.target.value)} />
     </div>
   </div>
 );
@@ -717,9 +703,7 @@ const InputGroup = ({ label, icon, value, onChange, placeholder, isToken = false
 const ErrorMessage = ({ message }) => (
   <div className="flex items-center gap-2.5 text-[11px] text-red-600 bg-red-50 p-2.5 rounded-xl border border-red-100 animate-in slide-in-from-top-2">
     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-    <p className="font-bold leading-tight">
-      {formatBoldText(message)}
-    </p>
+    <p className="font-bold leading-tight">{formatBoldText(message)}</p>
   </div>
 );
 
@@ -732,9 +716,7 @@ const SuccessCard = ({ resultData, onReset }) => (
       <p className="text-xs text-slate-400 font-mono mt-1 tracking-wider font-bold">{resultData.student_id}</p>
     </div>
     <div className="w-full max-w-xs">
-      <button onClick={onReset} className="w-full py-3.5 bg-white text-slate-400 font-black text-[10px] rounded-xl hover:text-slate-600 transition-colors uppercase tracking-[0.2em] border border-slate-100 shadow-sm">
-        ← 메인으로 돌아가기
-      </button>
+      <button onClick={onReset} className="w-full py-3.5 bg-white text-slate-400 font-black text-[10px] rounded-xl hover:text-slate-600 transition-colors uppercase tracking-[0.2em] border border-slate-100 shadow-sm">← 메인으로 돌아가기</button>
     </div>
   </div>
 );

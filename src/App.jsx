@@ -207,17 +207,29 @@ function StudentView({ systemStatus }) {
         throw new Error('학번 혹은 이름을 다시 확인해주세요.');
       }
       const sData = studentSnap.data();
-      if (sData.trial_count >= 3) { setStep('locked'); return; }
+      if (sData.trial_count >= 3 && sData.trial_count < 0) { setStep('locked'); return; }
       if (sData.is_attended) { throw new Error('이미 출결 처리된 학생입니다.'); }
 
       const tokenRef = doc(db, 'artifacts', appId, 'public', 'data', 'tokens', tokenInput);
       const txResult = await runTransaction(db, async (transaction) => {
         const tSnap = await transaction.get(tokenRef);
+
         if (!tSnap.exists() || tSnap.data().is_used) {
+          const failureReason = !tSnap.exists() ? 'NOT_FOUND' : 'ALREADY_USED';
           const nextTrial = (sData.trial_count || 0) + 1;
           transaction.update(studentRef, { trial_count: nextTrial });
-          return { success: false, nextTrial };
+
+          const logRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'));
+          transaction.set(logRef, {
+            studentId,
+            type: 'FAILURE',
+            time: serverTimestamp(),
+            desc: `출석 실패 (토큰: ${tokenInput}, 사유: ${failureReason === 'NOT_FOUND' ? '미존재' : '이미 사용됨'})`
+          });
+
+          return { success: false, nextTrial, failureReason };
         }
+
         transaction.update(studentRef, {
           is_attended: true, score: 5, attendance_type: 'FIELD', attended_at: serverTimestamp()
         });
@@ -230,8 +242,12 @@ function StudentView({ systemStatus }) {
       });
 
       if (!txResult.success) {
-        throw new Error(`유효하지 않은 토큰입니다. (**${txResult.nextTrial}/3회** 실패)`);
+        const errorMsg = txResult.failureReason === 'ALREADY_USED'
+          ? `이미 사용된 토큰입니다. (**${txResult.nextTrial}/3회** 실패)`
+          : `유효하지 않은 토큰입니다. (**${txResult.nextTrial}/3회** 실패)`;
+        throw new Error(errorMsg);
       }
+
       setResultData({ ...sData, is_attended: true, attendance_type: 'FIELD', score: 5 });
       setStep('success');
     } catch (err) {

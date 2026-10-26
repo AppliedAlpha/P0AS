@@ -244,3 +244,36 @@ test('full reset requires warning confirmation, supports retry and clears all op
     await page.goto('/'); await expect(page.getByRole('heading', { name: '출석 시작 전입니다.', exact: true })).toBeVisible();
   } finally { await student.close(); }
 });
+
+test('100 students on a shared IP complete attendance with automatically managed sessions', async ({ page, playwright, baseURL }) => {
+  const clients = [];
+  await login(page);
+  const post = (path, data) => page.request.post(path, { headers: { origin: baseURL }, data });
+  try {
+    const students = Array.from({ length: 100 }, (_, index) => ({ studentId: String(31000001 + index), name: `가상동시출석${index + 1}` }));
+    expect((await post('/api/admin/students', { students })).status()).toBe(200);
+    const issued = await post('/api/admin/tokens', { count: 100, label: '100명 동시 출석 검증' });
+    expect(issued.status()).toBe(201);
+    const { codes } = await issued.json();
+    await post('/api/admin/settings', { title: 'K-MOOC 특강', state: 'OPEN' });
+    for (let index = 0; index < students.length; index++) {
+      clients.push(await playwright.request.newContext({ baseURL, extraHTTPHeaders: { origin: baseURL, 'cf-connecting-ip': '203.0.113.50' } }));
+    }
+    // Each client has its own automatic cookie jar, just like separate student browsers.
+    const results = await Promise.all(students.map(async (student, index) => {
+      const identity = await clients[index].post('/api/session', { data: { ...student, consent: true } });
+      if (identity.status() !== 200) return { stage: 'identity', status: identity.status() };
+      const attendance = await clients[index].post('/api/attendance', { data: { token: codes[index], consent: true } });
+      return { stage: 'attendance', status: attendance.status() };
+    }));
+    expect(results.filter(result => result.status !== 200)).toEqual([]);
+    const overview = await (await page.request.get('/api/admin/overview')).json();
+    const ids = new Set(students.map(student => student.studentId));
+    expect(overview.students.filter(student => ids.has(student.id) && student.is_attended === 1 && student.attendance_type === 'FIELD' && student.score === 5)).toHaveLength(100);
+    expect(overview.tokens.filter(token => ids.has(token.used_by))).toHaveLength(100);
+  } finally {
+    await Promise.allSettled(clients.map(client => client.dispose()));
+    // This server owns a fresh test DB; restore its empty state for subsequent print tests.
+    expect((await post('/api/admin/reset', { confirm: true })).status()).toBe(200);
+  }
+});

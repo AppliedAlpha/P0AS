@@ -39,7 +39,7 @@ export default function Admin({ config }) {
         {authError && <Alert>{authError}</Alert>}
         {view === 'students' && <div className="roster-layout"><StudentRoster students={data.students} busy={busy} onAction={action} /><Activity logs={data.logs} /></div>}
         {view === 'tokens' && <TokenManager tokens={data.tokens} batches={data.batches} title={data.settings.title} busy={busy} onAction={action} />}
-        {view === 'settings' && <Settings key={JSON.stringify(data.settings)} settings={data.settings} busy={busy === 'settings'} onSave={settings => action('settings', '/admin/settings', settings, '저장했습니다.')} />}
+        {view === 'settings' && <Settings key={JSON.stringify(data.settings)} settings={data.settings} busy={busy} onSave={settings => action('settings', '/admin/settings', settings, '저장했습니다.')} onReset={() => action('reset', '/admin/reset', { confirm: true }, '모두 초기화했습니다.')} />}
       </main>
     </div>
   </div>;

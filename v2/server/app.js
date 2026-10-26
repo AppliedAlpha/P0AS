@@ -89,6 +89,21 @@ async function routes(request, env) {
       const tokens = await Promise.all(result[1].results.map(async ({ code_encrypted, ...row }) => ({ ...row, code: await decryptToken(env.DATA_SECRET, code_encrypted) })));
       return json({ students: result[0].results, tokens, logs: result[2].results, batches: result[3].results, settings: result[4].results[0], actor });
     }
+    if (path === '/api/admin/reset' && method === 'POST') {
+      const body = await readJSON(request);
+      if (body.confirm !== true) failure(400, '초기화 경고를 확인한 뒤 다시 시도해주세요.', 'CONFIRMATION_REQUIRED');
+      await env.DB.batch([
+        env.DB.prepare("UPDATE settings SET title = 'K-MOOC 특강', state = 'PRE' WHERE id = 1"),
+        env.DB.prepare("DELETE FROM sessions WHERE role = 'student'"),
+        env.DB.prepare('DELETE FROM claims'),
+        env.DB.prepare('DELETE FROM tokens'),
+        env.DB.prepare('DELETE FROM token_batches'),
+        env.DB.prepare('DELETE FROM students'),
+        env.DB.prepare('DELETE FROM logs'),
+        env.DB.prepare('DELETE FROM rate_limits'),
+      ]);
+      return json({ ok: true, settings: await settings(env.DB) });
+    }
     if (path === '/api/admin/settings' && method === 'POST') {
       const body = await readJSON(request);
       if (!['PRE', 'OPEN', 'CLOSED'].includes(body.state) || typeof body.title !== 'string' || !body.title.trim() || body.title.length > 80) failure(400, '행사명과 운영 상태를 확인해주세요.');

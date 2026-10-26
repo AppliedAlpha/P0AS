@@ -230,6 +230,64 @@ test('student and unauthenticated requests cannot bulk reset or delete tokens', 
   }
   assert.equal((await db.prepare('SELECT count(*) AS count FROM tokens').first()).count, 8);
 });
+test('only administrators with explicit confirmation can reset all data', async () => {
+  const studentCookie = await identify();
+  assert.equal((await request('/admin/reset', { body: { confirm: true } })).status, 401);
+  assert.equal((await request('/admin/reset', { cookie: studentCookie, body: { confirm: true } })).status, 401);
+  assert.equal((await request('/admin/reset', { body: { confirm: true }, environment: { ...env, LOCAL_DEV: undefined }, headers: { 'cf-access-authenticated-user-email': 'admin@example.com' } })).status, 401);
+  const cookie = await administrator();
+  for (const confirm of [undefined, false, 'true', 1]) {
+    const result = await request('/admin/reset', { cookie, body: { confirm } });
+    assert.equal(result.status, 400); assert.equal(result.data.code, 'CONFIRMATION_REQUIRED');
+  }
+  assert.equal((await db.prepare('SELECT count(*) AS count FROM students').first()).count, 16);
+  assert.equal((await db.prepare('SELECT count(*) AS count FROM tokens').first()).count, 8);
+  assert.equal((await request('/result', { cookie: studentCookie })).status, 200);
+});
+
+test('full reset deletes operational data, restores defaults and revokes student sessions', async () => {
+  const studentCookie = await identify(); const cookie = await administrator();
+  await request('/admin/settings', { cookie, body: { title: '초기화 전 행사', state: 'CLOSED' } });
+  const result = await request('/admin/reset', { cookie, body: { confirm: true } });
+  assert.equal(result.status, 200); assert.deepEqual(result.data.settings, { title: 'K-MOOC 특강', state: 'PRE' });
+  for (const table of ['students', 'claims', 'tokens', 'token_batches', 'logs', 'rate_limits']) {
+    assert.equal((await db.prepare(`SELECT count(*) AS count FROM ${table}`).first()).count, 0, table);
+  }
+  assert.equal((await db.prepare("SELECT count(*) AS count FROM sessions WHERE role = 'student'").first()).count, 0);
+  assert.equal((await request('/result', { cookie: studentCookie })).status, 401);
+  const overview = await request('/admin/overview', { cookie });
+  assert.equal(overview.status, 200); assert.equal(overview.data.students.length, 0); assert.equal(overview.data.logs.length, 0);
+  await request('/admin/students', { cookie, body: { students: [{ studentId: '26000001', name: '가상하나' }] } });
+  assert.equal((await request('/result', { cookie: studentCookie })).status, 401);
+  await request('/admin/settings', { cookie, body: { title: '새 행사', state: 'OPEN' } });
+  const issued = await request('/admin/tokens', { cookie, body: { count: 1, label: '새 행사 배부용' } });
+  assert.equal((await attend(await identify(), issued.data.codes[0])).status, 200);
+});
+
+test('full reset rolls back all changes if a later deletion fails', async t => {
+  t.mock.method(console, 'error', () => {});
+  const studentCookie = await identify(); const cookie = await administrator();
+  const tables = ['students', 'claims', 'tokens', 'token_batches', 'logs', 'sessions', 'rate_limits'];
+  const counts = () => tables.map(table => db.sqlite.prepare(`SELECT count(*) AS count FROM ${table}`).get().count);
+  const before = counts();
+  db.sqlite.exec("CREATE TRIGGER prevent_reset BEFORE DELETE ON logs BEGIN SELECT RAISE(ABORT, 'simulated reset failure'); END;");
+  const result = await request('/admin/reset', { cookie, body: { confirm: true } });
+  assert.equal(result.status, 500); assert.deepEqual(counts(), before);
+  assert.deepEqual(await db.prepare('SELECT title, state FROM settings WHERE id = 1').first(), { title: 'K-MOOC 특강', state: 'OPEN' });
+  assert.equal((await request('/result', { cookie: studentCookie })).status, 200);
+});
+
+test('local startup leaves reset data empty instead of restoring fictional fixtures', async () => {
+  const cookie = await administrator();
+  assert.equal((await request('/admin/reset', { cookie, body: { confirm: true } })).status, 200);
+  migrateLocal(db);
+  assert.equal(await seedLocal(db, env), false);
+  assert.equal((await db.prepare('SELECT count(*) AS count FROM students').first()).count, 0);
+  assert.equal((await db.prepare('SELECT count(*) AS count FROM tokens').first()).count, 0);
+  assert.equal((await db.prepare('SELECT count(*) AS count FROM logs').first()).count, 0);
+  assert.equal((await db.prepare('SELECT state FROM settings WHERE id = 1').first()).state, 'PRE');
+});
+
 test('existing hash-only schema upgrades idempotently without inventing originals or losing attendance', () => {
   const legacy = openLocalDatabase();
   try {

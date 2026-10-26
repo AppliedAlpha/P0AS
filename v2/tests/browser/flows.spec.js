@@ -126,3 +126,57 @@ test('mobile administrator can log out and lose data access', async ({ page }) =
   await expect(page.getByRole('button', { name: '관리자 로그인', exact: true })).toBeVisible();
   expect((await page.request.get('/api/admin/overview')).status()).toBe(401);
 });
+
+test('full reset requires warning confirmation, supports retry and clears all operational data', async ({ page, browser, baseURL }) => {
+  const student = await browser.newContext({ baseURL });
+  try {
+    await page.setViewportSize({ width: 390, height: 844 }); await login(page);
+    const adminPost = (path, data) => page.request.post(path, { headers: { origin: baseURL }, data });
+    expect((await adminPost('/api/admin/students', { students: [{ studentId: '28000001', name: '가상초기화' }] })).status()).toBe(200);
+    const issued = await adminPost('/api/admin/tokens', { count: 1, label: '초기화 검증용' });
+    const { codes } = await issued.json();
+    expect((await student.request.post('/api/session', { headers: { origin: baseURL }, data: { studentId: '28000001', name: '가상초기화', consent: true } })).status()).toBe(200);
+    expect((await adminPost('/api/admin/settings', { title: '초기화 확인 행사', state: 'OPEN' })).status()).toBe(200);
+    expect((await student.request.post('/api/attendance', { headers: { origin: baseURL }, data: { token: codes[0], consent: true } })).status()).toBe(200);
+    await page.goto('/manage'); await mobileNav(page).getByRole('button', { name: '운영 설정', exact: true }).click();
+    await expect(page.getByLabel('행사명', { exact: true })).toHaveValue('초기화 확인 행사');
+    let resetRequests = 0;
+    page.on('request', request => { if (request.url().endsWith('/api/admin/reset') && request.method() === 'POST') resetRequests++; });
+    const open = page.getByRole('button', { name: '모두 초기화', exact: true });
+    await open.click();
+    const dialog = page.getByRole('dialog', { name: '모두 초기화하시겠습니까?' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText('학생 명단, 모든 출결과 점수, 발급한 토큰, 활동 기록을 삭제합니다.');
+    await expect(dialog).toContainText('삭제한 데이터는 복구할 수 없습니다.');
+    await expect(dialog.getByRole('button', { name: '취소', exact: true })).toBeFocused();
+    await page.screenshot({ path: '.impeccable/review/reset-confirm-mobile.png', fullPage: true });
+    await dialog.getByRole('button', { name: '취소', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await open.click(); await page.keyboard.press('Escape'); await expect(dialog).toBeHidden();
+    expect(resetRequests).toBe(0);
+    expect((await student.request.get('/api/result')).status()).toBe(200);
+    await page.route('**/api/admin/reset', route => route.fulfill({ status: 500, json: { error: '초기화 검증용 일시 오류', code: 'TEST_FAILURE' } }), { times: 1 });
+    await open.click(); await dialog.getByRole('button', { name: '모두 초기화', exact: true }).click();
+    await expect(dialog.getByRole('alert')).toContainText('초기화하지 못했습니다.');
+    await expect(dialog.getByRole('button', { name: '모두 초기화', exact: true })).toBeEnabled();
+    const unchanged = await (await page.request.get('/api/admin/overview')).json();
+    expect(unchanged.students.some(row => row.id === '28000001' && row.is_attended === 1)).toBe(true);
+    await dialog.getByRole('button', { name: '모두 초기화', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByText('모두 초기화했습니다.', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('행사명', { exact: true })).toHaveValue('K-MOOC 특강');
+    await expect(page.getByRole('radio', { name: '시작 전', exact: true })).toBeChecked();
+    const empty = await (await page.request.get('/api/admin/overview')).json();
+    for (const key of ['students', 'tokens', 'batches', 'logs']) expect(empty[key]).toEqual([]);
+    expect((await student.request.get('/api/result')).status()).toBe(401);
+    await page.getByLabel('행사명', { exact: true }).fill('저장하지 않은 행사명');
+    await page.getByRole('radio', { name: '출석 진행 중', exact: true }).check();
+    await open.click(); await dialog.getByRole('button', { name: '모두 초기화', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByLabel('행사명', { exact: true })).toHaveValue('K-MOOC 특강');
+    await expect(page.getByRole('radio', { name: '시작 전', exact: true })).toBeChecked();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: '.impeccable/review/settings-reset-mobile.png', fullPage: true });
+    await page.goto('/'); await expect(page.getByRole('heading', { name: '출석 시작 전입니다.', exact: true })).toBeVisible();
+  } finally { await student.close(); }
+});

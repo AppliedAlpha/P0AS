@@ -212,6 +212,10 @@ td strong{font-size:12px;font-weight:600}
 .settings-form>section{padding:0 0 28px;margin:0 0 28px;border-bottom:1px solid var(--line)}
 .settings-form h2{font-size:15px;font-weight:600}
 .settings-form .field{max-width:480px}
+.settings-workspace{max-width:600px}
+.settings-reset{margin-top:32px;padding-top:28px;border-top:1px solid var(--line)}
+.settings-reset h2{font-size:15px;font-weight:600}
+.settings-reset p{font-size:13px;line-height:1.8;color:var(--muted);margin:10px 0 18px}
 .state-options{padding:0;border:0;margin:18px 0 0;display:flex;flex-direction:column;gap:10px}
 .state-options label{display:flex;align-items:center;gap:13px;border:1px solid var(--line);background:#fff;border-radius:9px;padding:18px;cursor:pointer;font-size:13px}
 .state-options label:has(input:checked){border-color:#769c82;background:#eff5ef}
@@ -256,7 +260,7 @@ td strong{font-size:12px;font-weight:600}
   .token-management .button{font-size:11px;padding:8px 10px}
   .inline-panel{padding:15px;margin:0 12px 15px}.file-input input{max-width:100%}
   .admin-login{padding:0 22px}.admin-login header{height:80px}.admin-login h1{font-size:25px}
-  .settings-form .field input{font-size:16px}.settings-form>.button{width:100%}
+  .settings-form .field input{font-size:16px}.settings-form>.button,.settings-reset>.button{width:100%}
 }
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media print{

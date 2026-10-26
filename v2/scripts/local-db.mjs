@@ -46,13 +46,17 @@ export function migrateLocal(db) {
   }
 }
 export async function seedLocal(db, env) {
+  // Local-only metadata survives an application reset so restarting does not restore deleted fixtures.
+  db.sqlite.exec('CREATE TABLE IF NOT EXISTS local_seed_state (id INTEGER PRIMARY KEY CHECK (id = 1))');
   if ((await db.prepare('SELECT count(*) AS count FROM students').first()).count) {
     for (const row of demoStudents) await db.prepare('UPDATE students SET name = ? WHERE id = ? AND name IS NULL AND name_digest = ?').bind(row.name, row.studentId, await digest(env.DATA_SECRET, 'name', `${row.studentId}:${row.name}`)).run();
     for (const code of demoCodes) await db.prepare('UPDATE tokens SET code_encrypted = ? WHERE digest = ? AND code_encrypted IS NULL').bind(await encryptToken(env.DATA_SECRET, code), await digest(env.DATA_SECRET, 'token', code)).run();
     await db.prepare("UPDATE token_batches SET label = '현장 배부용' WHERE id = 'demo-local'").run();
     await db.prepare("UPDATE logs SET description = '명단 16명 등록' WHERE actor = 'local-seed' AND type = 'IMPORT'").run();
+    await db.prepare('INSERT OR IGNORE INTO local_seed_state (id) VALUES (1)').run();
     return false;
   }
+  if (await db.prepare('SELECT id FROM local_seed_state WHERE id = 1').first()) return false;
   await db.prepare("UPDATE settings SET title = 'K-MOOC 특강', state = 'OPEN' WHERE id = 1").run();
   for (const row of demoStudents) {
     await db.prepare('INSERT INTO students (id, name, name_mask, name_digest) VALUES (?, ?, ?, ?)').bind(row.studentId, row.name, maskName(row.name), await digest(env.DATA_SECRET, 'name', `${row.studentId}:${row.name}`)).run();
@@ -63,6 +67,7 @@ export async function seedLocal(db, env) {
   await db.prepare("UPDATE students SET is_attended = 1, attendance_type = 'ASSIGNMENT', score = 5, attended_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = '26000009'").run();
   await db.prepare("UPDATE students SET trial_count = 3 WHERE id = '26000012'").run();
   await db.prepare("INSERT INTO logs (type, description, actor) VALUES ('IMPORT', '명단 16명 등록', 'local-seed')").run();
+  await db.prepare('INSERT INTO local_seed_state (id) VALUES (1)').run();
   return true;
 }
 export async function developmentEnvironment(directory = '.local') {

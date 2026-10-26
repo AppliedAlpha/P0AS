@@ -1,0 +1,7 @@
+/* Workhorse Korean UI stack; no third-party font request or tracking. */
+@font-face {
+  font-family: 'Pretendard Variable';
+  src: local('Pretendard Variable'), local('Pretendard');
+  font-display: swap;
+  font-weight: 100 900;
+}

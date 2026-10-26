@@ -1,0 +1,11 @@
+name = "p0as-v2-staging"
+compatibility_date = "2026-10-01"
+pages_build_output_dir = "./dist"
+
+# Remote staging only. Pages Functions requires the binding name DB.
+# The Node local server never reads this file or connects to Cloudflare.
+[[d1_databases]]
+binding = "DB"
+database_name = "p0as-v2-staging"
+database_id = "1f01b442-7933-4187-990b-0835910def03"
+migrations_dir = "migrations"

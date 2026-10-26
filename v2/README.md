@@ -1,0 +1,90 @@
+# p0as v2
+
+React + Cloudflare Pages Functions + D1 기반 현장 출결 앱. **현재 모든 데이터는 개발용 가상 데이터입니다.** v1/Firebase/이전 명단과 연결하지 않습니다.
+
+## 로컬에서 먼저 실행
+
+Node.js 24 이상이 필요합니다. 저장소 루트에서:
+
+```powershell
+cd v2
+npm ci
+npm run db:local
+npm run dev
+```
+
+브라우저에서 `http://127.0.0.1:5173`을 엽니다. 이 명령은 Cloudflare 로그인이나 원격 DB가 필요하지 않습니다.
+
+- 학생 출석 `/`: 학번 `26000001`, 이름 `가상하나`, 토큰 `482913` 또는 `715204`.
+- 결과 조회 `/check`: 같은 학번과 이름을 입력합니다.
+- 운영자 `/manage`: **관리자 로그인** 버튼을 누릅니다. 로컬 전용 인증과 원격 Access 인증은 분리되어 있습니다.
+- DB는 `.local/p0as.sqlite`, 개발용 비밀키는 `.local/secrets.json`에 최초 생성됩니다. 둘 다 Git에서 제외되며 개발 웹서버에서도 파일 다운로드를 차단합니다.
+- 토큰은 1회만 사용할 수 있습니다. 다른 가상 학생으로 반복 시험하거나 관리 화면에서 새 토큰을 발급하세요.
+- 초기 가상 명단은 16명이고 출석·과제 인정·잠금 상태를 포함합니다. 실제 사람의 정보가 아닙니다.
+
+## 검증
+
+```powershell
+npm test
+npm run lint
+npm run build
+npm run check:functions
+npm run test:browser
+```
+
+브라우저 검증은 Windows의 Microsoft Edge를 사용합니다. 다른 OS나 브라우저 경로는 `BROWSER_PATH` 환경 변수로 실행 파일을 지정합니다. 예: `$env:BROWSER_PATH = 'C:\Program Files\Google\Chrome\Application\chrome.exe'`. Playwright가 브라우저를 자동 다운로드하지는 않습니다.
+
+보안 테스트는 **메모리 내 독립 SQLite DB**를 만들고 종료 시 폐기합니다. 개발 DB나 원격 DB를 사용하지 않습니다. 로컬 SQLite 어댑터는 D1의 prepare/bind/batch 인터페이스를 재현합니다. Cloudflare 런타임 검증 절차와 그 한계는 [운영 문서](docs/OPERATIONS.md)를 참고하세요.
+
+## 포함 기능
+
+학생 출석·결과 조회, 개인정보 동의 체크, 관리자 인증, 명단 검색·등록, 출석 유형 필터, 학번/처리 시각 정렬, 이름 표시 토글, CSV 내보내기, 수동/과제 승인, 잠금 해제, 토큰 발급·조회·저장·인쇄·초기화·삭제, 행사명/운영 상태 관리, 활동 기록. 화면은 10초마다 최신 상태를 가져옵니다.
+
+학생 페이지는 화면 크기에 관계없이 최대 440px의 단일 열입니다. 환경/가상 데이터 표시, 학기, 상태 배지, 푸터를 표시하지 않습니다. 사용 데이터 자체는 여전히 개발용 가상 데이터입니다.
+
+관리자는 전체 토큰 번호를 조회할 수 있습니다. DB에는 검증용 HMAC과 AES-GCM 암호문을 저장하며, 서버가 권한 확인 후 원문을 복호화합니다. 기존에 해시만 저장한 토큰은 역산할 수 없으므로 `재발급 필요`로 표시됩니다. 로컬 기본 샘플 중 알려진 8개 토큰만 안전하게 보완합니다. 알려지지 않은 과거 번호는 추측하지 않습니다.
+
+토큰 전체 초기화는 사용 상태를 비우고 기존 소비 연결을 정리해 다시 사용할 수 있게 합니다. 선택 삭제/전체 삭제도 지원합니다. **학생의 기존 출결과 활동 기록은 유지합니다.** 파괴적인 작업은 화면에서 대상 수와 영향을 확인한 뒤 실행합니다. CSV는 현재 필터·정렬·이름 표시 설정을 따릅니다.
+
+토큰 인쇄는 A4 세로 한 장에 최대 30개(3열 × 10행)입니다. 각 토큰에 행사명, 6자리 번호, 1회용/조교 문의 안내, `https://p0as.applied.kr`로 연결되는 QR을 넣습니다. QR에는 개인 정보나 토큰 번호를 넣지 않습니다. 선택한 토큰만 또는 전체 토큰을 인쇄할 수 있습니다. 배율 100%, 브라우저 머리글·바닥글 끄기를 권장합니다. QR 생성·실제 PDF 해독까지 로컬에서 확인했습니다.
+
+개인정보 안내에는 사용자 제공의 담당 기관과 보유 기간을 반영했습니다. 등록·조회 모두 동의 체크가 필요하고 서버도 boolean `true`를 확인합니다. 사용자 요청에 따라 동의 시각·동의문 버전·별도 동의 이력은 저장하지 않습니다. 동의문은 `src/PrivacyConsent.jsx`에 있으며, 정책상의 파기 문구가 자동 DB 삭제 예약을 실행하는 것은 아닙니다.
+
+## 서버가 보안 경계
+
+- 브라우저에 Firebase/D1 접근 자격 증명이나 공통 비밀키를 넣지 않습니다.
+- D1은 Pages Functions의 `DB` 바인딩으로만 접근합니다.
+- 이름과 토큰의 검증값은 서버 전용 `DATA_SECRET`으로 만든 HMAC-SHA-256입니다. 이름은 학번도 함께 묶어 검증합니다. 학생 이름 원문은 DB에 저장하고 관리자에게만 전달합니다. 학생용 응답은 마스킹값을 사용합니다. 토큰 암호화 키는 DATA_SECRET에서 별도 용도로 파생하며 브라우저에 전달하지 않습니다.
+- 학생 세션은 서버 검증 후 발급한 30분짜리 HMAC 서명 + DB 세션으로 관리합니다. 쿠키는 HttpOnly, SameSite=Strict이며 원격에서 Secure를 적용합니다.
+- 학생 요청은 유효한 세션이 없으면 401입니다. 서명·만료·폐기 여부를 서버에서 검사합니다. 세션을 가진 사용자의 직접 API 호출 자체는 금지할 수 없으므로 모든 요청에 권한·상태·입력 검증을 적용합니다.
+- 토큰 소비·학생 출석·성공 로그는 SQLite 트리거를 이용한 단일 원자적 쓰기로 처리합니다. 학생과 토큰에 UNIQUE 제약이 있어 동시 중복 제출을 막습니다.
+- 토큰 실패 3회 잠금, 서버의 학번/IP 기반 속도 제한, 동일 출처 검사와 JSON 요청 검증을 적용합니다. 대규모 공격에는 별도의 Cloudflare WAF 정책도 검토할 수 있습니다.
+- 원격 학생 인증은 Turnstile을 **서버에서도 검증**합니다. 검증된 hostname/action을 확인합니다. 설정이 없으면 요청을 허용하지 않습니다.
+- 원격 관리자는 Cloudflare Access JWT의 서명·issuer·audience·만료와 이메일 허용 목록을 검증합니다. 로그인 안내 화면만 숨기는 방식으로 권한을 판단하지 않습니다.
+- 로컬 관리자 체험과 Turnstile 생략은 전용 로컬 서버 + loopback hostname에서만 작동합니다. 배포 설정에 로컬 우회 플래그를 넣지 않습니다.
+
+학번·이름만 아는 사람이 본인 확인을 통과할 수 있다는 운영상의 한계는 남습니다. 현장 토큰의 대리 전달까지 방지하려면 추가 본인 확인 또는 학교 SSO가 필요합니다. 이번 구현에는 사용자에게 제공되지 않은 학교 인증을 임의로 붙이지 않았습니다.
+
+## 원격 설정은 로컬 확인 후 별도로
+
+**로컬 DB와 원격 DB는 동기화되지 않습니다.** 개발 서버는 `wrangler.toml`, `.env`, 기존 v1 설정 또는 원격 인증 정보를 읽지 않습니다. 원격 DB로의 자동 대체 연결도 없습니다.
+
+원격 D1에는 처음부터 빈 DB를 만들고 별도 비밀키를 설정합니다. 기존 DB ID를 복사하지 않습니다. 현재 `wrangler.toml`의 DB ID는 실행 가능한 원격 대상이 아닌 자리표시자입니다.
+
+계정 확인, 새 원격 DB 생성, 마이그레이션, Pages 루트 설정, 비밀키, Access/Turnstile, 가상 데이터 등록, 원격 확인을 차례대로 설명한 [로컬 → 원격 실행 절차](docs/OPERATIONS.md)를 따라주세요. 원격 설정·배포는 자동으로 실행하지 않습니다.
+
+실제 `p0as.applied.kr/manage` 경로 보호와 도메인 연결을 준비하려면 [배포 안내](docs/DEPLOYMENT.md)를 참고하세요. Access 애플리케이션 하나로 관리자 화면과 `/api/admin/*`만 함께 보호하고 학생 영역에는 Access 정책을 만들지 않습니다.
+
+## 구조
+
+```text
+src/             학생·관리자 화면
+server/          공통 API, 세션, 권한, 서버 검증
+functions/api/   Pages Functions 진입점
+migrations/      D1 스키마 및 원자적 출석 트리거
+scripts/         원격 연결 없는 로컬 서버·DB 도구
+tests/           보안·동시성·브라우저 검증
+.local/          Git 제외된 로컬 개발 DB와 비밀키
+```
+
+Cloudflare 근거 문서: [Pages D1 바인딩](https://developers.cloudflare.com/pages/functions/bindings/), [D1 API](https://developers.cloudflare.com/d1/worker-api/d1-database/), [Access JWT 검증](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/), [Turnstile 서버 검증](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/), [하위 폴더별 Pages 배포](https://developers.cloudflare.com/pages/configuration/monorepos/).

@@ -1,0 +1,12 @@
+.local/
+.impeccable/review/
+.impeccable/question/
+.impeccable/cache/
+.dev.vars
+.env*
+!.env.example
+node_modules/
+dist/
+.wrangler/
+test-results/
+playwright-report/

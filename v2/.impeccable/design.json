@@ -1,0 +1,501 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-25T16:03:21.547Z",
+  "title": "Design System: p0as v2",
+  "extensions": {
+    "colorMeta": {
+      "green": {
+        "role": "primary",
+        "displayName": "깊은 녹색",
+        "tonalRamp": [
+          "oklch(15.00% 0.06071 177.34)",
+          "oklch(26.43% 0.06071 177.34)",
+          "oklch(37.86% 0.06071 177.34)",
+          "oklch(49.29% 0.06071 177.34)",
+          "oklch(60.71% 0.06071 177.34)",
+          "oklch(72.14% 0.06071 177.34)",
+          "oklch(83.57% 0.06071 177.34)",
+          "oklch(95.00% 0.06071 177.34)"
+        ]
+      },
+      "green-hover": {
+        "role": "primary",
+        "displayName": "짙어진 녹색",
+        "tonalRamp": [
+          "oklch(15.00% 0.05224 177.41)",
+          "oklch(26.43% 0.05224 177.41)",
+          "oklch(37.86% 0.05224 177.41)",
+          "oklch(49.29% 0.05224 177.41)",
+          "oklch(60.71% 0.05224 177.41)",
+          "oklch(72.14% 0.05224 177.41)",
+          "oklch(83.57% 0.05224 177.41)",
+          "oklch(95.00% 0.05224 177.41)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "잉크",
+        "tonalRamp": [
+          "oklch(15.00% 0.02988 175.43)",
+          "oklch(26.43% 0.02988 175.43)",
+          "oklch(37.86% 0.02988 175.43)",
+          "oklch(49.29% 0.02988 175.43)",
+          "oklch(60.71% 0.02988 175.43)",
+          "oklch(72.14% 0.02988 175.43)",
+          "oklch(83.57% 0.02988 175.43)",
+          "oklch(95.00% 0.02988 175.43)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "회녹색 텍스트",
+        "tonalRamp": [
+          "oklch(15.00% 0.01916 167.97)",
+          "oklch(26.43% 0.01916 167.97)",
+          "oklch(37.86% 0.01916 167.97)",
+          "oklch(49.29% 0.01916 167.97)",
+          "oklch(60.71% 0.01916 167.97)",
+          "oklch(72.14% 0.01916 167.97)",
+          "oklch(83.57% 0.01916 167.97)",
+          "oklch(95.00% 0.01916 167.97)"
+        ]
+      },
+      "soft": {
+        "role": "neutral",
+        "displayName": "옅은 녹색",
+        "tonalRamp": [
+          "oklch(15.00% 0.01001 164.87)",
+          "oklch(26.43% 0.01001 164.87)",
+          "oklch(37.86% 0.01001 164.87)",
+          "oklch(49.29% 0.01001 164.87)",
+          "oklch(60.71% 0.01001 164.87)",
+          "oklch(72.14% 0.01001 164.87)",
+          "oklch(83.57% 0.01001 164.87)",
+          "oklch(95.00% 0.01001 164.87)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "회녹색 선",
+        "tonalRamp": [
+          "oklch(15.00% 0.01088 158.83)",
+          "oklch(26.43% 0.01088 158.83)",
+          "oklch(37.86% 0.01088 158.83)",
+          "oklch(49.29% 0.01088 158.83)",
+          "oklch(60.71% 0.01088 158.83)",
+          "oklch(72.14% 0.01088 158.83)",
+          "oklch(83.57% 0.01088 158.83)",
+          "oklch(95.00% 0.01088 158.83)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "흰 종이",
+        "tonalRamp": [
+          "oklch(15.00% 0 0)",
+          "oklch(26.43% 0 0)",
+          "oklch(37.86% 0 0)",
+          "oklch(49.29% 0 0)",
+          "oklch(60.71% 0 0)",
+          "oklch(72.14% 0 0)",
+          "oklch(83.57% 0 0)",
+          "oklch(95.00% 0 0)"
+        ]
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "회백색 바탕",
+        "tonalRamp": [
+          "oklch(15.00% 0.00249 165.08)",
+          "oklch(26.43% 0.00249 165.08)",
+          "oklch(37.86% 0.00249 165.08)",
+          "oklch(49.29% 0.00249 165.08)",
+          "oklch(60.71% 0.00249 165.08)",
+          "oklch(72.14% 0.00249 165.08)",
+          "oklch(83.57% 0.00249 165.08)",
+          "oklch(95.00% 0.00249 165.08)"
+        ]
+      },
+      "focus": {
+        "role": "primary",
+        "displayName": "초점 녹색",
+        "tonalRamp": [
+          "oklch(15.00% 0.06506 169.62)",
+          "oklch(26.43% 0.06506 169.62)",
+          "oklch(37.86% 0.06506 169.62)",
+          "oklch(49.29% 0.06506 169.62)",
+          "oklch(60.71% 0.06506 169.62)",
+          "oklch(72.14% 0.06506 169.62)",
+          "oklch(83.57% 0.06506 169.62)",
+          "oklch(95.00% 0.06506 169.62)"
+        ]
+      },
+      "field-border": {
+        "role": "neutral",
+        "displayName": "입력 경계",
+        "tonalRamp": [
+          "oklch(15.00% 0.01524 158.20)",
+          "oklch(26.43% 0.01524 158.20)",
+          "oklch(37.86% 0.01524 158.20)",
+          "oklch(49.29% 0.01524 158.20)",
+          "oklch(60.71% 0.01524 158.20)",
+          "oklch(72.14% 0.01524 158.20)",
+          "oklch(83.57% 0.01524 158.20)",
+          "oklch(95.00% 0.01524 158.20)"
+        ]
+      },
+      "field-border-hover": {
+        "role": "neutral",
+        "displayName": "강조된 입력 경계",
+        "tonalRamp": [
+          "oklch(15.00% 0.03054 156.41)",
+          "oklch(26.43% 0.03054 156.41)",
+          "oklch(37.86% 0.03054 156.41)",
+          "oklch(49.29% 0.03054 156.41)",
+          "oklch(60.71% 0.03054 156.41)",
+          "oklch(72.14% 0.03054 156.41)",
+          "oklch(83.57% 0.03054 156.41)",
+          "oklch(95.00% 0.03054 156.41)"
+        ]
+      },
+      "error-surface": {
+        "role": "semantic",
+        "displayName": "오류 바탕",
+        "tonalRamp": [
+          "oklch(15.00% 0.01678 31.08)",
+          "oklch(26.43% 0.01678 31.08)",
+          "oklch(37.86% 0.01678 31.08)",
+          "oklch(49.29% 0.01678 31.08)",
+          "oklch(60.71% 0.01678 31.08)",
+          "oklch(72.14% 0.01678 31.08)",
+          "oklch(83.57% 0.01678 31.08)",
+          "oklch(95.00% 0.01678 31.08)"
+        ]
+      },
+      "error-text": {
+        "role": "semantic",
+        "displayName": "오류 글자",
+        "tonalRamp": [
+          "oklch(15.00% 0.12668 23.79)",
+          "oklch(26.43% 0.12668 23.79)",
+          "oklch(37.86% 0.12668 23.79)",
+          "oklch(49.29% 0.12668 23.79)",
+          "oklch(60.71% 0.12668 23.79)",
+          "oklch(72.14% 0.12668 23.79)",
+          "oklch(83.57% 0.12668 23.79)",
+          "oklch(95.00% 0.12668 23.79)"
+        ]
+      },
+      "success-surface": {
+        "role": "semantic",
+        "displayName": "성공 바탕",
+        "tonalRamp": [
+          "oklch(15.00% 0.01322 159.91)",
+          "oklch(26.43% 0.01322 159.91)",
+          "oklch(37.86% 0.01322 159.91)",
+          "oklch(49.29% 0.01322 159.91)",
+          "oklch(60.71% 0.01322 159.91)",
+          "oklch(72.14% 0.01322 159.91)",
+          "oklch(83.57% 0.01322 159.91)",
+          "oklch(95.00% 0.01322 159.91)"
+        ]
+      },
+      "success-text": {
+        "role": "semantic",
+        "displayName": "성공 글자",
+        "tonalRamp": [
+          "oklch(15.00% 0.07732 158.41)",
+          "oklch(26.43% 0.07732 158.41)",
+          "oklch(37.86% 0.07732 158.41)",
+          "oklch(49.29% 0.07732 158.41)",
+          "oklch(60.71% 0.07732 158.41)",
+          "oklch(72.14% 0.07732 158.41)",
+          "oklch(83.57% 0.07732 158.41)",
+          "oklch(95.00% 0.07732 158.41)"
+        ]
+      },
+      "status-surface": {
+        "role": "neutral",
+        "displayName": "기본 상태 바탕",
+        "tonalRamp": [
+          "oklch(15.00% 0.00414 157.18)",
+          "oklch(26.43% 0.00414 157.18)",
+          "oklch(37.86% 0.00414 157.18)",
+          "oklch(49.29% 0.00414 157.18)",
+          "oklch(60.71% 0.00414 157.18)",
+          "oklch(72.14% 0.00414 157.18)",
+          "oklch(83.57% 0.00414 157.18)",
+          "oklch(95.00% 0.00414 157.18)"
+        ]
+      },
+      "status-text": {
+        "role": "neutral",
+        "displayName": "기본 상태 글자",
+        "tonalRamp": [
+          "oklch(15.00% 0.01733 164.23)",
+          "oklch(26.43% 0.01733 164.23)",
+          "oklch(37.86% 0.01733 164.23)",
+          "oklch(49.29% 0.01733 164.23)",
+          "oklch(60.71% 0.01733 164.23)",
+          "oklch(72.14% 0.01733 164.23)",
+          "oklch(83.57% 0.01733 164.23)",
+          "oklch(95.00% 0.01733 164.23)"
+        ]
+      },
+      "status-open-surface": {
+        "role": "semantic",
+        "displayName": "진행 상태 바탕",
+        "tonalRamp": [
+          "oklch(15.00% 0.01653 156.91)",
+          "oklch(26.43% 0.01653 156.91)",
+          "oklch(37.86% 0.01653 156.91)",
+          "oklch(49.29% 0.01653 156.91)",
+          "oklch(60.71% 0.01653 156.91)",
+          "oklch(72.14% 0.01653 156.91)",
+          "oklch(83.57% 0.01653 156.91)",
+          "oklch(95.00% 0.01653 156.91)"
+        ]
+      },
+      "status-open-text": {
+        "role": "semantic",
+        "displayName": "진행 상태 글자",
+        "tonalRamp": [
+          "oklch(15.00% 0.08526 157.39)",
+          "oklch(26.43% 0.08526 157.39)",
+          "oklch(37.86% 0.08526 157.39)",
+          "oklch(49.29% 0.08526 157.39)",
+          "oklch(60.71% 0.08526 157.39)",
+          "oklch(72.14% 0.08526 157.39)",
+          "oklch(83.57% 0.08526 157.39)",
+          "oklch(95.00% 0.08526 157.39)"
+        ]
+      },
+      "status-closed-surface": {
+        "role": "semantic",
+        "displayName": "종료 상태 바탕",
+        "tonalRamp": [
+          "oklch(15.00% 0.00455 78.30)",
+          "oklch(26.43% 0.00455 78.30)",
+          "oklch(37.86% 0.00455 78.30)",
+          "oklch(49.29% 0.00455 78.30)",
+          "oklch(60.71% 0.00455 78.30)",
+          "oklch(72.14% 0.00455 78.30)",
+          "oklch(83.57% 0.00455 78.30)",
+          "oklch(95.00% 0.00455 78.30)"
+        ]
+      },
+      "status-closed-text": {
+        "role": "semantic",
+        "displayName": "종료 상태 글자",
+        "tonalRamp": [
+          "oklch(15.00% 0.03109 74.36)",
+          "oklch(26.43% 0.03109 74.36)",
+          "oklch(37.86% 0.03109 74.36)",
+          "oklch(49.29% 0.03109 74.36)",
+          "oklch(60.71% 0.03109 74.36)",
+          "oklch(72.14% 0.03109 74.36)",
+          "oklch(83.57% 0.03109 74.36)",
+          "oklch(95.00% 0.03109 74.36)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "관리자 제목",
+        "purpose": "관리 화면의 큰 제목."
+      },
+      "form-title": {
+        "displayName": "폼 제목",
+        "purpose": "학생 입력·결과 조회 폼의 제목."
+      },
+      "body": {
+        "displayName": "설명",
+        "purpose": "학생 폼 안내 등 문장형 보조 설명."
+      },
+      "field": {
+        "displayName": "입력값",
+        "purpose": "일반 텍스트 입력. 모바일 입력은 확대."
+      },
+      "label": {
+        "displayName": "입력 라벨",
+        "purpose": "입력 항목을 구별하는 한국어 라벨."
+      },
+      "button": {
+        "displayName": "버튼 문구",
+        "purpose": "일반 실행 버튼."
+      },
+      "table": {
+        "displayName": "표 본문",
+        "purpose": "명단과 토큰 목록의 기본 표 글자."
+      },
+      "token": {
+        "displayName": "토큰 숫자",
+        "purpose": "6자리 현장 토큰. 고정 폭 숫자와 넓은 자간."
+      }
+    },
+    "shadows": [
+      {
+        "name": "confirm-dialog",
+        "value": "0 16px 50px #172f2433",
+        "purpose": "??/??? ?? ?????? ??"
+      }
+    ],
+    "motion": [
+      {
+        "name": "button-color-transition",
+        "value": "background .18s, color .18s",
+        "purpose": "버튼 hover의 색 전환. 생략한 easing은 CSS 기본 ease."
+      },
+      {
+        "name": "field-border-transition",
+        "value": "border-color .18s",
+        "purpose": "일반 입력의 경계 전환. 생략한 easing은 CSS 기본 ease."
+      },
+      {
+        "name": "busy-spin",
+        "value": "spin 1s linear infinite",
+        "purpose": "처리 중 로더. transform: rotate(360deg)."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "@media (prefers-reduced-motion: reduce) { animation: none !important; transition: none !important; scroll-behavior: auto !important; }",
+        "purpose": "사용자 동작 줄이기 설정을 따른다."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide-admin",
+        "value": "min-width: 1500px"
+      },
+      {
+        "name": "compact-desktop",
+        "value": "max-width: 1200px"
+      },
+      {
+        "name": "mobile",
+        "value": "max-width: 760px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "주요 버튼",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "주요 실행. hover와 키보드 초점, 비활성 상태를 포함한다.",
+      "html": "<button class=\"ds-primary\">출석 완료하기<svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14m-7-7 7 7-7 7\"/></svg></button>",
+      "css": ".ds-primary{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:46px;padding:12px 20px;border-radius:9px;font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;font-size:14px;font-weight:650;white-space:nowrap;cursor:pointer;transition:background .18s,color .18s;background:var(--green,#174f44);color:#fff;border:0}.ds-primary:hover{background:var(--green-hover,#0e3d34)}.ds-primary:focus-visible{outline:3px solid #538976;outline-offset:4px}.ds-primary:disabled{background:#e1e7e3;color:#68766e;border-color:transparent;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-primary{transition:none}}"
+    },
+    {
+      "name": "보조 버튼",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "흰 바탕과 경계로 표현하는 보조 동작.",
+      "html": "<button class=\"ds-secondary\">다른 정보로 확인하기</button>",
+      "css": ".ds-secondary{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:46px;padding:12px 20px;border-radius:9px;font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;font-size:14px;font-weight:650;white-space:nowrap;cursor:pointer;transition:background .18s,color .18s;background:#fff;color:var(--ink,#253b35);border:1px solid var(--line,#dce4df)}.ds-secondary:hover{background:#eff4f1}.ds-secondary:focus-visible{outline:3px solid #538976;outline-offset:4px}.ds-secondary:disabled{background:#e1e7e3;color:#68766e;border-color:transparent;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-secondary{transition:none}}"
+    },
+    {
+      "name": "투명 버튼",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "주변 작업의 취소와 보조 동작.",
+      "html": "<button class=\"ds-ghost\">취소</button>",
+      "css": ".ds-ghost{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:46px;padding:12px 20px;border-radius:9px;font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;font-size:14px;font-weight:650;white-space:nowrap;cursor:pointer;transition:background .18s,color .18s;background:transparent;color:var(--muted,#65736d);border:0}.ds-ghost:hover{background:#e8efeb;color:var(--ink,#253b35)}.ds-ghost:focus-visible{outline:3px solid #538976;outline-offset:4px}.ds-ghost:disabled{background:#e1e7e3;color:#68766e;border-color:transparent;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-ghost{transition:none}}"
+    },
+    {
+      "name": "라벨 입력",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "학생 정보와 설정의 공통 입력. 라벨과 도움말을 세로로 둔다.",
+      "html": "<div class=\"ds-field\"><label for=\"ds-student-name\">이름</label><input id=\"ds-student-name\" placeholder=\"명단에 등록된 이름\" autocomplete=\"name\"></div>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:9px;font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;color:var(--ink,#253b35)}.ds-field label{font-size:13px;font-weight:650}.ds-field input{width:100%;min-width:0;padding:13px 14px;border:1px solid #cbd6cf;border-radius:8px;background:#fff;color:var(--ink,#253b35);font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;font-size:15px;line-height:1.5;caret-color:var(--green,#174f44);transition:border-color .18s}.ds-field input::placeholder{color:#738079;opacity:1}.ds-field input:hover{border-color:#9fb4a6}.ds-field input:focus{border-color:var(--green,#174f44)}.ds-field input:focus-visible{outline:3px solid #538976;outline-offset:4px}.ds-field input:disabled{background:#edf0ee;color:var(--muted,#65736d)}@media(max-width:760px){.ds-field input{font-size:16px}}@media(prefers-reduced-motion:reduce){.ds-field input{transition:none}}"
+    },
+    {
+      "name": "학생 메뉴",
+      "kind": "nav",
+      "description": "현재 항목은 짙은 녹색과 아래쪽 선을 함께 사용한다.",
+      "html": "<nav class=\"ds-tabs\" aria-label=\"출결 메뉴\"><a href=\"/\" aria-current=\"page\">출석하기</a><a href=\"/check\">결과 조회</a></nav>",
+      "css": ".ds-tabs{display:flex;gap:26px;border-bottom:1px solid var(--line,#dce4df);font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif}.ds-tabs a{position:relative;font-size:13px;font-weight:600;padding:0 0 15px;color:#6d7972;text-decoration:none}.ds-tabs a[aria-current=page],.ds-tabs a:hover{color:var(--green,#174f44)}.ds-tabs a[aria-current=page]:after{content:'';position:absolute;height:2px;background:var(--green,#174f44);left:0;right:0;bottom:-1px}.ds-tabs a:focus-visible{outline:3px solid #538976;outline-offset:4px}@media(max-width:760px){.ds-tabs{gap:30px}.ds-tabs a{padding-bottom:13px}}"
+    },
+    {
+      "name": "토큰 목록 표면",
+      "kind": "card",
+      "refersTo": "list-surface",
+      "description": "그림자 없이 선과 내부 구획으로 묶는 목록. 표 행에는 옅은 hover를 쓴다.",
+      "html": "<section class=\"ds-list\"><div class=\"ds-list-heading\"><h2>발급한 토큰</h2></div><table class=\"ds-table\"><thead><tr><th>토큰</th><th>상태</th></tr></thead><tbody><tr><td>123•••</td><td>사용 전</td></tr><tr><td>456•••</td><td>사용 완료</td></tr></tbody></table></section>",
+      "css": ".ds-list{border:1px solid var(--line,#dce4df);border-radius:var(--radius,12px);background:#fff;overflow:hidden;min-width:0;color:var(--ink,#253b35);font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif}.ds-list-heading{padding:24px 25px}.ds-list-heading h2{font-size:14px;font-weight:650;letter-spacing:-.015em;margin:0}.ds-table{border-collapse:collapse;width:100%;text-align:left;font-size:12px;white-space:nowrap}.ds-table th{background:#f5f7f5;color:#6c7970;font-size:10px;font-weight:550;padding:13px 18px;border-top:1px solid #e5ebe6;border-bottom:1px solid #e5ebe6}.ds-table td{padding:16px 18px;border-bottom:1px solid #edf0ec;height:68px;font-variant-numeric:tabular-nums}.ds-table tbody tr:last-child td{border-bottom:0}.ds-table tbody tr:hover{background:#fafcf9}@media(max-width:760px){.ds-table th,.ds-table td{padding:13px}}"
+    },
+    {
+      "name": "여섯 자리 토큰 입력",
+      "kind": "input",
+      "refersTo": "token-input",
+      "description": "센터 정렬, 넓은 자간, 고정 폭 숫자. 일반 입력과 달리 hover 경계 변경은 없다.",
+      "html": "<div class=\"ds-token-field\"><label for=\"ds-token\">출석 토큰</label><input class=\"ds-token\" id=\"ds-token\" inputmode=\"numeric\" autocomplete=\"off\" placeholder=\"000000\" pattern=\"[0-9]{6}\" minlength=\"6\" maxlength=\"6\"></div>",
+      "css": ".ds-token-field{display:flex;flex-direction:column;gap:10px;font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;color:var(--ink,#253b35)}.ds-token-field label{font-size:13px;font-weight:650}.ds-token{width:100%;min-width:0;border:1px solid #b6cbbd;border-radius:8px;color:var(--green,#174f44);background:#edf4ef;font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;font-weight:600;font-variant-numeric:tabular-nums;font-size:28px;letter-spacing:.42em;text-align:center;height:68px;padding:12px 8px 12px 20px;caret-color:var(--green,#174f44)}.ds-token::placeholder{color:#6e8476;opacity:1}.ds-token:focus-visible{outline:3px solid #538976;outline-offset:4px}.ds-token:disabled{background:#edf0ee;color:var(--muted,#65736d)}@media(max-width:760px){.ds-token{height:72px;background:#edf4ef;font-size:30px}}"
+    },
+    {
+      "name": "상태 알림",
+      "kind": "custom",
+      "refersTo": "alert-error",
+      "description": "오류는 alert, 성공은 status 역할. 아이콘과 텍스트를 함께 표시한다.",
+      "html": "<div class=\"ds-alert\" role=\"alert\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 8v4m0 4h.01\"/></svg><span>입력한 정보를 확인해주세요.</span></div><div class=\"ds-alert ds-alert-success\" role=\"status\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m20 6-11 11-5-5\"/></svg><span>출석이 기록되었어요.</span></div>",
+      "css": ".ds-alert{display:flex;align-items:flex-start;gap:9px;padding:13px 14px;background:#fff0ed;color:#8d3030;border-radius:8px;font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;font-size:13px;line-height:1.6}.ds-alert svg{flex-shrink:0;margin-top:1px}.ds-alert-success{background:#eaf4ee;color:#245d40}"
+    },
+    {
+      "name": "?? ??",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "?? ?? ????? ?? ??",
+      "html": "<button class=\"ds-danger\">??</button>",
+      "css": ".ds-danger{background:#a13232;color:#fff;border:0;border-radius:9px;padding:12px 20px;font:650 14px sans-serif;cursor:pointer}.ds-danger:hover{background:#812626}.ds-danger:focus-visible{outline:3px solid #538976;outline-offset:4px}"
+    },
+    {
+      "name": "?? ??",
+      "kind": "custom",
+      "description": "??? ??? ??? ????. ?? ??? ?? ???? ???.",
+      "html": "<label class=\"ds-consent\"><input type=\"checkbox\" required>???? ?????? ????? (??)</label>",
+      "css": ".ds-consent{display:flex;align-items:center;gap:9px;color:#253b35;font:500 12px sans-serif;line-height:1.7;cursor:pointer}.ds-consent input{accent-color:#174f44;width:17px;height:17px}.ds-consent input:focus-visible{outline:3px solid #538976;outline-offset:4px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "차분한 현장 확인기",
+    "overview": "p0as v2는 한국어 현장 출결을 빠르게 읽고 입력하는 Operate UI다. 밝은 회백색 바탕에 흰 작업 영역과 짙은 녹색 동작을 놓는다. 한글 산세리프와 정렬된 숫자, 얇은 구분선으로 입력·결과·명단을 구별한다.\n\n화면의 성격은 단정하고 실용적이다. 상태는 문구와 점 또는 선형 SVG 아이콘으로 설명한다. 새로운 화면도 v1의 시각 언어를 이어받지 않고 현재 v2의 색, 형태, 상태 표현을 기준으로 삼는다.",
+    "keyCharacteristics": [
+      "밝은 회백색 바탕과 짙은 녹색 주요 동작",
+      "한글 산세리프와 고정 크기의 명확한 위계",
+      "얇은 구분선, 절제된 라운드, 그림자 없는 작업 영역",
+      "문구와 표시를 함께 쓰는 상태 표현",
+      "작은 화면에서 입력과 명단을 우선하는 반응형 구성"
+    ],
+    "rules": [
+      {
+        "name": "The Status Has Words Rule",
+        "body": "상태는 색만으로 전달하지 않고 한국어 문구와 점 또는 아이콘을 함께 표시한다.",
+        "section": "colors"
+      },
+      {
+        "name": "The Aligned Numbers Rule",
+        "body": "학번, 시간, 점수, 토큰처럼 비교하거나 옮겨 적는 숫자는 tabular-nums를 사용한다.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Work Surface Rule",
+        "body": "작업 영역의 구분은 색면과 선으로 만든다. 현재 시스템의 기본 표면에 그림자를 추가하지 않는다.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** 한국어 작업 문구와 현재 상태를 먼저 읽히게 한다.",
+      "**Do** 주요 동작에는 깊은 녹색, 일반 정보에는 중립색을 사용한다.",
+      "**Do** 키보드 초점 외곽선과 상태의 문자 표현을 유지한다.",
+      "**Do** 숫자 비교에는 tabular-nums를 사용한다.",
+      "**Do** 작은 화면에서는 입력과 명단의 주요 정보를 앞세운다."
+    ],
+    "donts": [
+      "**Don't** v1의 시각 언어를 새 v2 화면의 기준으로 가져오지 않는다.",
+      "**Don't** 상태를 색만으로 표현하지 않는다.",
+      "**Don't** 현재의 평평한 작업 표면에 장식용 그림자를 추가하지 않는다.",
+      "**Don't** 미리보기용 톤 램프나 특정 화면의 미세 보조 글자 크기를 새 화면의 기본 토큰으로 확대하지 않는다."
+    ]
+  }
+}

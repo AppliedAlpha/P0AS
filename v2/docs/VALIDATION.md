@@ -1,0 +1,32 @@
+# v2 개발 검증 기록
+
+확인일: 2026-10-26 (Asia/Seoul). 실제 명단·이전 토큰·Firebase를 사용하지 않았습니다.
+
+## 로컬 결과
+
+| 확인 | 결과 |
+|---|---|
+| `npm test` | 보안·출석·동의·암호화·토큰 관리·정렬·이름 표시 테스트 28개 통과 |
+| `npm run lint` | 오류 없음 |
+| `npm run build` | 성공, 학생 번들과 관리자 번들 분리 |
+| `npm run check:functions` | Pages Functions Worker 번들 생성 성공 |
+| Wrangler D1 migration `--local` | `0001_initial.sql`, `0002_admin_management.sql` 적용 성공 |
+| Wrangler D1 조회 `--local` | 설정 `PRE`, 학생 0명. Node 개발 DB와 독립됨 |
+| 브라우저 기능 검증 | 4개 통과. 기존 등록·조회·관리자 기능과 A4 인쇄/선택 인쇄/QR 해독 확인 |
+| 인쇄물 확인 | PDF 2페이지, A4, 첫 페이지 30개. 각 토큰의 QR·번호·1회용·조교 문의 안내 확인. 실제 PDF를 래스터화한 QR도 `https://p0as.applied.kr`로 해독됨 |
+| 로컬 파일 보호 | `.local/secrets.json`, `.local/p0as.sqlite`, 직접 `@fs` 경로 요청 차단 확인 |
+| 모바일 로그아웃 | 운영자 로그아웃 후 명단 API 401 확인 |
+| 클라이언트 비밀키 검사 | 빌드된 JS에 로컬 SESSION_SECRET/DATA_SECRET 값 없음 |
+| 디자인 검사 | 화면 확인에서 표 내부 접근성 텍스트가 모바일 가로 넘침을 만들던 문제를 수정하고 확인함. detector는 문서에 없는 기존 색·타입·반경에 관한 advisory를 보고했으며, 완전한 디자인 시스템 정규화는 이번 범위에서 수행하지 않음 |
+
+브라우저 검증은 `.local/browser-tests/<UUID>/`에 매번 새로운 DB와 키를 생성합니다. 출석과 토큰 전체 삭제 검증은 이 DB에만 적용합니다. 일반 개발 DB `.local/p0as.sqlite`나 원격 DB를 사용하지 않습니다. Windows에서 테스트 서버를 직접 소유·종료하는 래퍼도 별도 검사하여 정상 종료를 확인했습니다.
+
+개인정보 안내는 사용자 제공의 연구실/보유 기간과 미동의 시 수기 출석 요청 조건을 사용합니다. 동의 시각, 동의문 버전, 별도 동의 이력 테이블은 추가하지 않았습니다.
+
+Node 테스트는 요청·스키마·권한 처리를 독립 메모리 DB에서 검증합니다. D1 에뮬레이터에서는 스키마 적용과 빈 초기 상태를 확인했습니다. 원격 D1의 지연·한도·계정 설정, 실제 Access 로그인, 실제 Turnstile 및 실사용 부하는 아직 검증하지 않았습니다.
+
+## 원격 결과
+
+**미실행.** 원격 DB 생성·조회·쓰기, 원격 마이그레이션, Cloudflare 설정·배포, GitHub push를 수행하지 않았습니다. 기존 Firebase나 기존 학기 데이터에도 접근하지 않았습니다.
+
+다음 작업은 [OPERATIONS.md](OPERATIONS.md) 순서대로 진행합니다: 로컬 확인 → 계정과 새 DB ID 확인 → 원격 스키마 적용 → Pages/서버 비밀키/Access/Turnstile 설정 → 새 가상 데이터 등록 → 원격 출석·권한·환경 분리 확인.

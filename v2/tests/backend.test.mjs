@@ -13,9 +13,9 @@ beforeEach(async () => {
   migrateLocal(db); await seedLocal(db, env);
 });
 afterEach(() => db.close());
-async function request(path, { body, cookie, headers = {}, environment = env } = {}) {
+async function request(path, { body, cookie, headers = {}, environment = env, origin = 'http://localhost:5173' } = {}) {
   if (body !== undefined && ['/session', '/attendance'].includes(path)) body = { consent: true, ...body };
-  const response = await handleRequest(new Request(`http://localhost:5173/api${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { ...(body === undefined ? {} : { 'content-type': 'application/json', origin: 'http://localhost:5173' }), ...(cookie ? { cookie } : {}), ...headers }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }), environment);
+  const response = await handleRequest(new Request(`${origin}/api${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { ...(body === undefined ? {} : { 'content-type': 'application/json', origin }), ...(cookie ? { cookie } : {}), ...headers }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }), environment);
   return { status: response.status, data: await response.json(), cookie: response.headers.get('set-cookie')?.split(';')[0], headers: response.headers };
 }
 async function identify(studentId = '26000001', name = '가상하나') { const result = await request('/session', { body: { studentId, name } }); assert.equal(result.status, 200); return result.cookie; }
@@ -104,9 +104,20 @@ test('local-only login cannot run in a remote environment or hostname', async ()
   assert.equal(response.status, 404);
   assert.equal((await request('/admin/overview', { environment: { ...env, LOCAL_DEV: undefined }, headers: { 'cf-access-authenticated-user-email': 'admin@example.com' } })).status, 401);
 });
-test('remote identity flow fails closed without server-side challenge configuration', async () => {
-  const result = await request('/session', { body: { studentId: '26000001', name: '가상하나' }, environment: { ...env, LOCAL_DEV: undefined } });
-  assert.equal(result.status, 503); assert.equal(result.cookie, undefined);
+test('remote student identity, attendance and lookup work without external verification', async t => {
+  const network = t.mock.method(globalThis, 'fetch', () => { throw new Error('Student requests must not contact an external service'); });
+  const remote = { environment: { DB: db, SESSION_SECRET: env.SESSION_SECRET, DATA_SECRET: env.DATA_SECRET }, origin: 'https://app.example' };
+  const denied = await request('/session', { ...remote, body: { studentId: '26000001', name: '틀린이름' } });
+  assert.equal(denied.status, 400); assert.equal(denied.data.code, 'IDENTITY_MISMATCH'); assert.equal(denied.cookie, undefined);
+  const identity = await request('/session', { ...remote, body: { studentId: '26000001', name: '가상하나' } });
+  assert.equal(identity.status, 200); assert.ok(identity.cookie);
+  assert.match(identity.headers.get('set-cookie'), /; HttpOnly; SameSite=Strict; Max-Age=1800; Secure$/);
+  const attendance = await request('/attendance', { ...remote, cookie: identity.cookie, body: { token: '482913' } });
+  assert.equal(attendance.status, 200); assert.equal(attendance.data.student.is_attended, 1);
+  const lookup = await request('/result', { ...remote, cookie: identity.cookie });
+  assert.equal(lookup.status, 200); assert.equal(lookup.data.student.attendance_type, 'FIELD');
+  assert.equal((await request('/admin/overview', { ...remote, cookie: identity.cookie })).status, 401);
+  assert.equal(network.mock.callCount(), 0);
 });
 test('identity requests are rate limited by student on the server', async () => {
   for (let i = 0; i < 8; i++) await request('/session', { body: { studentId: '26000001', name: '잘못된이름' } });

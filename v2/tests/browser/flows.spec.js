@@ -11,6 +11,12 @@ async function login(page) {
 
 test('student consent, compact layouts and complete administrator controls', async ({ page }) => {
   const errors = []; page.on('pageerror', error => errors.push(error.message));
+  // Exercise the student UI with a deployed configuration, using only the isolated local test server.
+  await page.route('**/api/config', async route => {
+    const response = await route.fetch();
+    const { title, state } = await response.json();
+    await route.fulfill({ response, json: { title, state, local: false } });
+  });
   mkdirSync('.impeccable/review', { recursive: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/'); await expect(page.getByRole('heading', { name: '현장 출석', exact: true })).toBeVisible();
@@ -27,14 +33,15 @@ test('student consent, compact layouts and complete administrator controls', asy
   await expect(page.getByText('성적 산출 및 학기 종료 시 파기', { exact: true })).toBeVisible();
   await expect(page.getByText('개인정보 수집·이용에 동의하지 않으면 이 페이지의 출결 등록·조회 등을 이용할 수 없으며, 현장에서 조교에게 수기 출석을 요청해야 합니다.', { exact: true })).toBeVisible();
   await page.screenshot({ path: '.impeccable/review/consent-mobile.png', fullPage: true });
-  await consent(page).check(); await page.getByRole('button', { name: '출석 완료하기' }).click();
+  await consent(page).check(); await expect(page.getByRole('button', { name: '출석 완료하기' })).toBeEnabled(); await page.getByRole('button', { name: '출석 완료하기' }).click();
   await expect(page.getByRole('heading', { name: '출석이 확인되었습니다.' })).toBeVisible();
   await page.screenshot({ path: '.impeccable/review/result-mobile.png', fullPage: true });
   await page.goto('/check'); await page.getByLabel('학번', { exact: true }).fill('26000001'); await page.getByLabel('이름', { exact: true }).fill('가상하나');
   await expect(page.getByRole('button', { name: '출석 결과 확인' })).toBeDisabled();
-  await consent(page).check(); await page.getByRole('button', { name: '출석 결과 확인' }).click();
+  await consent(page).check(); await expect(page.getByRole('button', { name: '출석 결과 확인' })).toBeEnabled(); await page.getByRole('button', { name: '출석 결과 확인' }).click();
   await expect(page.getByRole('heading', { name: '출석이 확인되었습니다.' })).toBeVisible();
 
+  await page.unroute('**/api/config');
   await login(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(page.getByRole('button', { name: '관리자 로그아웃' })).toBeVisible();

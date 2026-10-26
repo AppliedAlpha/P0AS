@@ -142,15 +142,13 @@ Pages **runtime**의 Variables and Secrets에 다음을 설정합니다. Product
 |---|---|
 | `SESSION_SECRET` | 새 랜덤 32자 이상, 학생 세션 서명 |
 | `DATA_SECRET` | 위와 다른 새 랜덤 32자 이상, 이름·토큰 검증과 토큰 암호화 키 파생 |
-| `TURNSTILE_SITE_KEY` | staging 도메인에 등록한 공개 site key |
-| `TURNSTILE_SECRET_KEY` | 같은 widget의 비공개 secret |
 | `ACCESS_TEAM_DOMAIN` | `your-team.cloudflareaccess.com` |
 | `ACCESS_AUD` | 관리자 Access 애플리케이션의 audience |
 | `ADMIN_EMAILS` | 허용할 운영자 이메일, 여러 명은 쉼표 구분 |
 
 두 비밀키는 Cloudflare에서 새로 만들거나 신뢰하는 비밀 생성기로 별도 생성합니다. `.local/secrets.json`의 값을 복사하지 마세요. 비밀키를 `VITE_` 변수로 바꾸거나 wrangler.toml/GitHub에 기록하지 마세요. **`LOCAL_DEV`는 원격에 설정하지 않습니다.** DATA_SECRET 변경은 기존 이름·토큰 검증값을 무효화하므로 기존 데이터가 있는 환경에서 계획 없이 회전하지 않습니다.
 
-Cloudflare Turnstile widget에 실제 사용할 hostname을 등록합니다. 관리자용 Access self-hosted application **하나**에 `p0as.applied.kr/manage`와 `p0as.applied.kr/api/admin/*`를 함께 등록하고 운영자 이메일만 Allow합니다. `/manage/*`만 등록하면 `/manage` 자체가 빠질 수 있으므로 `/manage` 항목을 반드시 넣습니다. `/`, `/check`, 학생용 `/api/*`에는 Access 정책을 만들지 않습니다. 관리자 API인 `/api/admin/*`만 별도 보호 대상입니다. 같은 애플리케이션의 AUD를 `ACCESS_AUD`에 설정합니다. `/api/admin/login`은 인증 후 `/manage`로 돌아오며 API에서도 JWT를 검증합니다. 자세한 대시보드 입력과 확인 방법은 [배포 안내](DEPLOYMENT.md)의 Access 절을 따르세요.
+학생 출석·조회에는 별도 widget이나 CAPTCHA 설정이 필요하지 않습니다. 관리자용 Access self-hosted application **하나**에 `p0as.applied.kr/manage`와 `p0as.applied.kr/api/admin/*`를 함께 등록하고 운영자 이메일만 Allow합니다. `/manage/*`만 등록하면 `/manage` 자체가 빠질 수 있으므로 `/manage` 항목을 반드시 넣습니다. `/`, `/check`, 학생용 `/api/*`에는 Access 정책을 만들지 않습니다. 관리자 API인 `/api/admin/*`만 별도 보호 대상입니다. 같은 애플리케이션의 AUD를 `ACCESS_AUD`에 설정합니다. `/api/admin/login`은 인증 후 `/manage`로 돌아오며 API에서도 JWT를 검증합니다. 자세한 대시보드 입력과 확인 방법은 [배포 안내](DEPLOYMENT.md)의 Access 절을 따르세요.
 
 환경변수·D1 바인딩을 저장한 다음 Pages를 다시 배포합니다. 이 작업에서 Cloudflare 설정, 원격 마이그레이션, GitHub push 또는 실제 배포는 자동 수행하지 않습니다.
 
@@ -161,7 +159,7 @@ Cloudflare Turnstile widget에 실제 사용할 hostname을 등록합니다. 관
 3. **명단 등록**에 `student_id,name` 헤더와 가상 학생 `27000001,가상새봄`, `27000002,가상여름`을 넣는다. v1 파일이나 실제 명단을 선택하지 않는다.
 4. 토큰 메뉴에서 2~3개의 원격 전용 토큰을 새로 발급한다. 새로고침 후에도 전체 번호가 보이는지 확인한다. 로컬의 `482913`을 원격에 자동 등록하지 않는다.
 5. 운영 설정에서 staging 행사명을 저장하고 출석 상태를 **출석 진행 중**으로 바꾼다. 학기 입력은 없다.
-6. 학생용 브라우저/시크릿 창에서 `27000001`, `가상새봄`, 방금 원격에서 발급한 토큰을 넣고 개인정보 동의에 체크해 출석한다. Turnstile과 출석 완료를 확인한다. 동의 시각이나 버전은 별도로 저장하지 않는다.
+6. 학생용 브라우저/시크릿 창에서 `27000001`, `가상새봄`, 방금 원격에서 발급한 토큰을 넣고 개인정보 동의에 체크해 출석한다. 별도 보안 확인 없이 출석 완료가 표시되는지 확인한다. 동의 시각이나 버전은 별도로 저장하지 않는다.
 7. `/check`에서 같은 학생의 점수·유형·시각을 확인하고 관리자 명단·로그가 10초 안에 갱신되는지 확인한다.
 8. 다른 가상 학생에게 이미 사용한 토큰을 제출해 거절되는지 확인한다. 3회 실패 잠금과 관리자 해제를 확인한다.
 9. 종료 상태에서 새 출석은 거절되고 조회는 유지되는지 확인한다.
@@ -174,4 +172,4 @@ Cloudflare Turnstile widget에 실제 사용할 hostname을 등록합니다. 관
 
 로컬에서 실행한 명령과 결과, 원격 계정/Pages 프로젝트/DB ID, 원격에서 실제 확인한 기능, 아직 수행하지 않은 항목을 구분해서 기록합니다. 원격을 실행하지 않았다면 **로컬 검증 완료, 원격 검증 미실행**이라고 명확하게 남깁니다. 새 기능을 바꿀 때도 같은 순서로 진행합니다.
 
-참조: [Cloudflare Pages 모노레포](https://developers.cloudflare.com/pages/configuration/monorepos/), [바인딩과 비밀값](https://developers.cloudflare.com/pages/functions/bindings/), [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/), [Access JWT 검증](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/), [Turnstile 서버 검증](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/).
+참조: [Cloudflare Pages 모노레포](https://developers.cloudflare.com/pages/configuration/monorepos/), [바인딩과 비밀값](https://developers.cloudflare.com/pages/functions/bindings/), [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/), [Access JWT 검증](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/).

@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, ClipboardCheck, LockKeyhole } from 'lucide-react';
 import { api, formatTime, typeLabels } from './lib';
 import { Alert, Brand, Button, Field } from './components';
-import Challenge from './Challenge';
 import PrivacyConsent from './PrivacyConsent';
 
 const Admin = lazy(() => import('./Admin'));
@@ -26,8 +25,6 @@ export default function App() {
 function Student({ config, lookup }) {
   const [form, setForm] = useState({ studentId: '', name: '', token: '' });
   const [consent, setConsent] = useState(false);
-  const [challenge, setChallenge] = useState('');
-  const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
@@ -36,11 +33,11 @@ function Student({ config, lookup }) {
   async function submit(event) {
     event.preventDefault(); setError(''); setBusy(true);
     try {
-      const identity = await api('/session', { studentId: form.studentId, name: form.name, consent, challenge });
+      const identity = await api('/session', { studentId: form.studentId, name: form.name, consent });
       const data = lookup ? identity : await api('/attendance', { token: form.token, consent });
       setResult(data.student);
     } catch (error) { setError(error.message); if (error.code === 'LOCKED') setLocked(true); }
-    finally { setBusy(false); setChallenge(''); setAttempt(value => value + 1); }
+    finally { setBusy(false); }
   }
   async function reset() {
     try { await api('/logout', {}); setResult(null); setForm({ studentId: '', name: '', token: '' }); setConsent(false); setLocked(false); setError(''); }
@@ -59,9 +56,8 @@ function Student({ config, lookup }) {
             <Field id="student-name" label="이름" autoComplete="name" required maxLength={40} value={form.name} onChange={update('name')} disabled={busy || locked} />
             {!lookup && <div className="token-field"><label htmlFor="attendance-token">출석 토큰</label><input id="attendance-token" className="token-input" inputMode="numeric" autoComplete="off" placeholder="000000" pattern="[0-9]{6}" minLength={6} maxLength={6} required value={form.token} onChange={event => setForm(previous => ({ ...previous, token: event.target.value.replace(/\D/g, '') }))} disabled={busy || locked} /></div>}
             <PrivacyConsent checked={consent} onChange={setConsent} disabled={busy || locked} />
-            <Challenge key={attempt} config={config} onToken={setChallenge} />
             {error && <Alert>{error}</Alert>}
-            <Button className="button-primary button-full" busy={busy} disabled={locked || !consent || (!config.local && !challenge)}>{busy ? '처리 중…' : locked ? '조교에게 문의해주세요' : lookup ? '출석 결과 확인' : '출석 완료하기'}{!busy && !locked && <ArrowRight size={18} />}</Button>
+            <Button className="button-primary button-full" busy={busy} disabled={locked || !consent}>{busy ? '처리 중…' : locked ? '조교에게 문의해주세요' : lookup ? '출석 결과 확인' : '출석 완료하기'}{!busy && !locked && <ArrowRight size={18} />}</Button>
           </form>}
         </>}
       </section>

@@ -101,7 +101,6 @@ input:disabled{background:#edf0ee;color:var(--muted)}
 .receipt>div{display:flex;align-items:baseline;justify-content:space-between;gap:20px;font-size:13px;line-height:2.8}
 .receipt dt{color:var(--muted)}
 .receipt dd{margin:0;font-weight:550;font-variant-numeric:tabular-nums}
-.challenge{min-height:65px}
 
 .admin-login{min-height:100dvh;max-width:1120px;margin:auto;padding:0 40px;display:flex;flex-direction:column}
 .admin-login header{display:flex;align-items:center;justify-content:space-between;height:100px}

@@ -59,9 +59,9 @@ npm run test:browser
 - 학생 요청은 유효한 세션이 없으면 401입니다. 서명·만료·폐기 여부를 서버에서 검사합니다. 세션을 가진 사용자의 직접 API 호출 자체는 금지할 수 없으므로 모든 요청에 권한·상태·입력 검증을 적용합니다.
 - 토큰 소비·학생 출석·성공 로그는 SQLite 트리거를 이용한 단일 원자적 쓰기로 처리합니다. 학생과 토큰에 UNIQUE 제약이 있어 동시 중복 제출을 막습니다.
 - 토큰 실패 3회 잠금, 서버의 학번/IP 기반 속도 제한, 동일 출처 검사와 JSON 요청 검증을 적용합니다. 대규모 공격에는 별도의 Cloudflare WAF 정책도 검토할 수 있습니다.
-- 원격 학생 인증은 Turnstile을 **서버에서도 검증**합니다. 검증된 hostname/action을 확인합니다. 설정이 없으면 요청을 허용하지 않습니다.
+- 학생 세션 발급에는 학번·이름과 개인정보 동의만 사용하며 별도의 CAPTCHA나 외부 인증 서비스 설정이 필요하지 않습니다.
 - 원격 관리자는 Cloudflare Access JWT의 서명·issuer·audience·만료와 이메일 허용 목록을 검증합니다. 로그인 안내 화면만 숨기는 방식으로 권한을 판단하지 않습니다.
-- 로컬 관리자 체험과 Turnstile 생략은 전용 로컬 서버 + loopback hostname에서만 작동합니다. 배포 설정에 로컬 우회 플래그를 넣지 않습니다.
+- 로컬 관리자 체험은 전용 로컬 서버 + loopback hostname에서만 작동합니다. 배포 설정에 로컬 우회 플래그를 넣지 않습니다.
 
 학번·이름만 아는 사람이 본인 확인을 통과할 수 있다는 운영상의 한계는 남습니다. 현장 토큰의 대리 전달까지 방지하려면 추가 본인 확인 또는 학교 SSO가 필요합니다. 이번 구현에는 사용자에게 제공되지 않은 학교 인증을 임의로 붙이지 않았습니다.
 
@@ -69,9 +69,9 @@ npm run test:browser
 
 **로컬 DB와 원격 DB는 동기화되지 않습니다.** 개발 서버는 `wrangler.toml`, `.env`, 기존 v1 설정 또는 원격 인증 정보를 읽지 않습니다. 원격 DB로의 자동 대체 연결도 없습니다.
 
-원격 D1에는 처음부터 빈 DB를 만들고 별도 비밀키를 설정합니다. 기존 DB ID를 복사하지 않습니다. 현재 `wrangler.toml`의 DB ID는 실행 가능한 원격 대상이 아닌 자리표시자입니다.
+원격 D1에는 처음부터 빈 DB를 만들고 별도 비밀키를 설정합니다. 기존 학기의 DB ID를 복사하지 않습니다. `wrangler.toml`의 이름과 `database_id`가 이번에 만든 원격 D1과 일치하는지 확인합니다.
 
-계정 확인, 새 원격 DB 생성, 마이그레이션, Pages 루트 설정, 비밀키, Access/Turnstile, 가상 데이터 등록, 원격 확인을 차례대로 설명한 [로컬 → 원격 실행 절차](docs/OPERATIONS.md)를 따라주세요. 원격 설정·배포는 자동으로 실행하지 않습니다.
+계정 확인, 새 원격 DB 생성, 마이그레이션, Pages 루트 설정, 비밀키, 관리자 Access, 가상 데이터 등록, 원격 확인을 차례대로 설명한 [로컬 → 원격 실행 절차](docs/OPERATIONS.md)를 따라주세요. 원격 설정·배포는 자동으로 실행하지 않습니다.
 
 실제 `p0as.applied.kr/manage` 경로 보호와 도메인 연결을 준비하려면 [배포 안내](docs/DEPLOYMENT.md)를 참고하세요. Access 애플리케이션 하나로 관리자 화면과 `/api/admin/*`만 함께 보호하고 학생 영역에는 Access 정책을 만들지 않습니다.
 
@@ -87,4 +87,4 @@ tests/           보안·동시성·브라우저 검증
 .local/          Git 제외된 로컬 개발 DB와 비밀키
 ```
 
-Cloudflare 근거 문서: [Pages D1 바인딩](https://developers.cloudflare.com/pages/functions/bindings/), [D1 API](https://developers.cloudflare.com/d1/worker-api/d1-database/), [Access JWT 검증](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/), [Turnstile 서버 검증](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/), [하위 폴더별 Pages 배포](https://developers.cloudflare.com/pages/configuration/monorepos/).
+Cloudflare 근거 문서: [Pages D1 바인딩](https://developers.cloudflare.com/pages/functions/bindings/), [D1 API](https://developers.cloudflare.com/d1/worker-api/d1-database/), [Access JWT 검증](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/), [하위 폴더별 Pages 배포](https://developers.cloudflare.com/pages/configuration/monorepos/).

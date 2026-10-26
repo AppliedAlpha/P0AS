@@ -116,11 +116,3 @@ export async function admin(request, env) {
     return payload.email;
   } catch { throw new HttpError(403, '관리 권한이 없는 계정입니다.', 'FORBIDDEN'); }
 }
-export async function verifyChallenge(request, env, responseToken) {
-  if (localOnly(request, env)) return;
-  if (!env.TURNSTILE_SECRET_KEY || !env.TURNSTILE_SITE_KEY) throw new HttpError(503, '본인 확인 설정을 준비 중입니다.', 'NOT_CONFIGURED');
-  if (typeof responseToken !== 'string' || responseToken.length > 2048 || !responseToken) throw new HttpError(400, '보안 확인을 완료해주세요.', 'CHALLENGE_REQUIRED');
-  const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: new URLSearchParams({ secret: env.TURNSTILE_SECRET_KEY, response: responseToken, remoteip: request.headers.get('cf-connecting-ip') || '' }) });
-  const result = await response.json();
-  if (!result.success || result.hostname !== new URL(request.url).hostname || result.action !== 'identity') throw new HttpError(400, '보안 확인이 만료되었습니다. 다시 시도해주세요.', 'CHALLENGE_FAILED');
-}

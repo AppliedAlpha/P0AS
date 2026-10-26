@@ -2,6 +2,35 @@
 
 학생 주소는 `https://p0as.applied.kr`, 관리자 주소는 `https://p0as.applied.kr/manage`입니다. QR은 학생 주소로만 연결하며 학번이나 토큰을 URL에 넣지 않습니다. 이번 단계에서는 원격에도 새 가상 데이터만 등록합니다. 이 문서는 실행 절차이며 원격 DB 생성·쓰기·배포·DNS·Access 변경은 자동 실행하지 않았습니다.
 
+## 배포 준비 중인 환경에 이번 수정 적용
+
+이번 수정은 학생 인증의 Turnstile 의존성을 제거합니다. 이미 준비한 DB와 서버 비밀키를 그대로 사용하며 **추가 DB 생성·마이그레이션·초기화는 필요하지 않습니다.**
+
+1. 먼저 저장소 루트의 PowerShell에서 로컬 검증을 실행합니다.
+
+   ```powershell
+   cd v2
+   npm.cmd test
+   npm.cmd run lint
+   npm.cmd run build
+   npm.cmd run check:functions
+   npm.cmd run test:browser
+   ```
+
+   예상 결과는 서버 테스트 28개, 브라우저 테스트 4개 통과와 두 빌드 성공입니다. 서버 테스트는 메모리 DB에서 원격 환경을 모사하고, 브라우저 테스트도 매번 새 로컬 DB에서 실행합니다. 원격 DB를 사용하지 않습니다.
+
+2. 원격에 적용하기 전에 아래 읽기 명령으로 계정과 D1 목록을 확인합니다. `wrangler.toml`의 `database_id`를 이미 준비한 `p0as-v2-staging` DB와 대조하고, Pages 프로젝트의 Root directory가 `v2`, 바인딩명이 `DB`인지 확인합니다.
+
+   ```powershell
+   npx.cmd wrangler whoami
+   npx.cmd wrangler d1 list
+   ```
+
+3. 이 수정이 포함된 커밋을 GitHub의 Pages 연결 브랜치에 반영하고 새 배포가 성공했는지 확인합니다. 서버 환경값은 4절의 5개만 필요합니다. 기존 `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`가 있으면 삭제해도 됩니다. 아직 만들지 않았다면 추가하지 않습니다. 기존 `SESSION_SECRET`, `DATA_SECRET`은 유지합니다.
+4. 새 배포의 `/`와 `/check`를 시크릿 창에서 엽니다. 기존 원격 가상 학생과 원격에서 발급한 미사용 토큰으로 개인정보 동의 후 출석하고, 학번·이름과 동의만으로 결과를 조회합니다. 별도 보안 확인을 기다리지 않고 처리되어야 합니다. `/manage`와 `/api/admin/*`의 Access 보호도 확인합니다. 원격에서 등록한 학생이나 출석이 로컬 DB에 나타나지 않는지 확인합니다.
+
+이 문서는 적용 절차입니다. 이번 수정에서 원격 DB나 Cloudflare 설정·배포를 직접 변경하지 않았습니다.
+
 ## 1. 로컬에서 먼저 확인
 
 저장소 루트의 PowerShell에서:
@@ -80,7 +109,7 @@ npx wrangler d1 execute p0as-v2-staging --remote --command "SELECT count(*) AS s
 
 **새 원격 DB의 예상 결과는 설정 1개, 상태 PRE, 학생 0명**입니다. 로컬 샘플 16명이 자동 복사되면 안 됩니다. 기존 v2 원격 DB를 갱신하는 경우에는 데이터가 있을 수 있으므로 이 0명 기대값을 적용하지 말고 먼저 백업합니다. 기존 DB의 갱신·백업은 [운영 문서의 이번 변경 적용 절차](OPERATIONS.md)를 따르세요.
 
-## 4. 서버 값과 Turnstile 준비
+## 4. 서버 환경값 준비
 
 Cloudflare Pages의 **Settings → Variables and Secrets**에서 사용할 환경에 다음 값을 설정합니다. 앱이 배포되는 기본 브랜치 환경은 대시보드에서 Production이라 부르지만, 이번에는 그 환경에도 가상 데이터만 사용합니다. Preview를 사용한다면 Preview DB와 키도 별도로 지정합니다.
 
@@ -88,13 +117,11 @@ Cloudflare Pages의 **Settings → Variables and Secrets**에서 사용할 환�
 |---|---|
 | `SESSION_SECRET` | 원격 전용 새 랜덤 문자열, 최소 32자 |
 | `DATA_SECRET` | 위 값과 다른 원격 전용 새 랜덤 문자열, 최소 32자 |
-| `TURNSTILE_SITE_KEY` | 아래에서 만든 widget의 site key |
-| `TURNSTILE_SECRET_KEY` | 같은 widget의 secret key |
 | `ACCESS_TEAM_DOMAIN` | 예: `your-team.cloudflareaccess.com` |
 | `ACCESS_AUD` | 6절에서 만든 관리자 Access 앱의 AUD |
 | `ADMIN_EMAILS` | 허용 관리자 이메일, 여러 명은 쉼표 구분 |
 
-이 값들은 서버 runtime에서 사용합니다. 민감한 값은 Secret으로 저장하고 Git 또는 `VITE_` 변수로 넣지 않습니다. 공개 site key와 식별자도 서버 환경에서 관리하면 됩니다. 로컬 `.local/secrets.json`은 복사하지 않습니다. `LOCAL_DEV`는 원격에 설정하지 않습니다. DATA_SECRET은 기존 토큰 복호화에도 필요하므로 기존 DB가 있는 환경에서 임의로 바꾸지 않습니다.
+이 값들은 서버 runtime에서 사용합니다. 민감한 값은 Secret으로 저장하고 Git 또는 `VITE_` 변수로 넣지 않습니다. 로컬 `.local/secrets.json`은 복사하지 않습니다. `LOCAL_DEV`는 원격에 설정하지 않습니다. DATA_SECRET은 기존 토큰 복호화에도 필요하므로 기존 DB가 있는 환경에서 임의로 바꾸지 않습니다.
 
 새 랜덤 값을 생성하려면 신뢰하는 비밀 생성기를 사용하거나 아래 명령을 로컬 터미널에서 각 키마다 따로 실행하고, 출력값을 해당 Secret에만 저장합니다. 이 명령은 DB를 변경하지 않습니다.
 
@@ -102,7 +129,7 @@ Cloudflare Pages의 **Settings → Variables and Secrets**에서 사용할 환�
 node --input-type=module -e "import { randomBytes } from 'node:crypto'; console.log(randomBytes(48).toString('hex'))"
 ```
 
-Turnstile 대시보드에서 widget을 만들고 hostname에 **`p0as.applied.kr`**를 등록합니다. 경로나 `https://`를 hostname에 넣지 않습니다. 임시 Pages 주소에서 학생 흐름까지 시험하려면 그 정확한 hostname도 해당 widget에 등록해야 합니다. 원격에서 site key/secret이 없으면 학생 인증은 실패하도록 구현되어 있습니다.
+학생 출석·조회에는 별도의 CAPTCHA나 widget 등록이 필요하지 않습니다. 학번·이름과 개인정보 동의로 학생 세션을 발급하고, 출석할 때 서버가 토큰을 검증합니다. 필요한 서버 환경값은 위의 5개입니다.
 
 ## 5. Pages와 GitHub 연결
 
@@ -134,7 +161,7 @@ Zero Trust → **Access controls → Applications**에서 관리자용 Self-host
 | `p0as.applied.kr/manage` | 관리자 화면, `/manage` 자체와 그 하위 경로 |
 | `p0as.applied.kr/api/admin/*` | 명단·토큰·설정·로그인 등 관리자 API |
 
-`/manage/*`만 등록하면 `/manage` 자체가 빠질 수 있습니다. Path가 없는 `p0as.applied.kr`나 `p0as.applied.kr/*`를 등록하면 학생 영역까지 보호하므로 사용하지 않습니다. **학생용 `/`, `/check`, `/api/config`, `/api/session`, `/api/attendance`, `/api/result`에는 Access 정책을 만들지 않습니다.** 학생용 API의 동의·세션·Turnstile 검증은 계속 앱 서버가 처리합니다. [경로 매칭 규칙](https://developers.cloudflare.com/cloudflare-one/access-controls/policies/app-paths/)
+`/manage/*`만 등록하면 `/manage` 자체가 빠질 수 있습니다. Path가 없는 `p0as.applied.kr`나 `p0as.applied.kr/*`를 등록하면 학생 영역까지 보호하므로 사용하지 않습니다. **학생용 `/`, `/check`, `/api/config`, `/api/session`, `/api/attendance`, `/api/result`에는 Access 정책을 만들지 않습니다.** 학생용 API의 동의·세션·학번·이름·출석 토큰 검증은 앱 서버가 처리합니다. [경로 매칭 규칙](https://developers.cloudflare.com/cloudflare-one/access-controls/policies/app-paths/)
 
 관리자 API도 같은 앱에 넣는 이유는 서버가 `Cf-Access-Jwt-Assertion`을 검증하기 때문입니다. `/manage` 화면만 보호하면 그 바깥의 `/api/admin/*` 요청에는 Access JWT가 붙지 않아 관리자 화면은 열려도 데이터 요청이 401이 될 수 있습니다. JWT 검증을 제거해서 해결하지 않습니다. [Access JWT 검증](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/)
 
@@ -155,7 +182,7 @@ Allow 정책에는 운영자 이메일만 넣습니다. Everyone Allow나 학생
 
 3. 토큰 2~3개를 원격에서 새로 발급하고 새로고침 후 전체 번호를 확인한다. 로컬 샘플 번호와는 독립적이다.
 4. 운영 설정에서 행사명을 저장하고 출석 진행 중으로 바꾼다.
-5. 별도 시크릿 창에서 루트를 연다. Access 로그인 없이 학생 화면이 열려야 한다. 가상 학생 정보·원격에서 발급한 토큰·동의 체크·Turnstile로 출석한다.
+5. 별도 시크릿 창에서 루트를 연다. Access 로그인이나 별도 보안 확인 없이 학생 화면이 열려야 한다. 가상 학생 정보·원격에서 발급한 토큰을 입력하고 개인정보 동의에 체크해 출석한다.
 6. 결과 조회와 관리자 명단·로그를 확인한다. 다른 가상 학생에게 이미 쓴 토큰을 입력하면 거절되어야 한다.
 7. QR을 읽어 실제 `https://p0as.applied.kr`가 열리는지 확인한다. 인쇄 PDF에도 개별 토큰의 QR·안내·번호가 있어야 한다.
 8. 로그아웃/비허용 계정/시크릿 창으로 `/manage`와 `/api/admin/overview` 접근이 막히는지 확인한다. 학생 쿠키로 관리자 데이터를 볼 수 없어야 한다.
@@ -170,7 +197,7 @@ Allow 정책에는 운영자 이메일만 넣습니다. Everyone Allow나 학생
 | 관리자 화면은 열리나 API 401 | 같은 Access 앱에 `/api/admin/*`도 등록했는지 |
 | 관리자 API 403 | team domain, AUD, Access 이메일 정책, ADMIN_EMAILS |
 | 학생 페이지까지 Access 로그인 요구 | Access의 Path가 비어 있거나 도메인 전체를 보호하는지 |
-| 학생의 보안 확인 실패 | Turnstile hostname, site key/secret 쌍, 실제 도메인 |
+| 학생의 학번·이름 확인 실패 | 현재 원격 DB에 등록한 가상 학생 정보와 입력값, 개인정보 동의 여부 |
 | 일부 과거 토큰이 재발급 필요 | 해시만 남은 이전 토큰은 원문 복원 불가, 새로 발급 |
 | QR 인쇄가 비어 있음 | 정적 SVG 파일 배포/로딩 확인, 인쇄 오류 메시지 후 새로고침 |
 

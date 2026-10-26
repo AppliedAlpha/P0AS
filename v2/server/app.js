@@ -1,4 +1,4 @@
-import { HttpError, admin, decryptToken, digest, encryptToken, issueSession, localOnly, maskName, normalizeName, rateLimit, readJSON, requireSecrets, sameOrigin, session, studentInput, verifyChallenge } from './security.js';
+import { HttpError, admin, decryptToken, digest, encryptToken, issueSession, localOnly, maskName, normalizeName, rateLimit, readJSON, requireSecrets, sameOrigin, session, studentInput } from './security.js';
 
 const studentColumns = 'id, name_mask, trial_count, is_attended, attendance_type, score, attended_at';
 const json = (value, status = 200, headers = {}) => Response.json(value, { status, headers });
@@ -20,14 +20,13 @@ async function routes(request, env) {
   if (!['GET', 'POST'].includes(method)) failure(405, '지원하지 않는 요청입니다.');
   if (method === 'POST') sameOrigin(request);
 
-  if (path === '/api/config' && method === 'GET') return json({ ...await settings(env.DB), local: localOnly(request, env), siteKey: localOnly(request, env) ? null : env.TURNSTILE_SITE_KEY || null });
+  if (path === '/api/config' && method === 'GET') return json({ ...await settings(env.DB), local: localOnly(request, env) });
   if (path === '/api/session' && method === 'POST') {
     const body = await readJSON(request);
     requireConsent(body.consent);
     const { studentId, name } = studentInput(body);
     await rateLimit(env.DB, env.DATA_SECRET, 'identity-ip', request.headers.get('cf-connecting-ip') || 'local', 30);
     await rateLimit(env.DB, env.DATA_SECRET, 'identity-student', studentId, 8);
-    await verifyChallenge(request, env, body.challenge);
     const found = await env.DB.prepare('SELECT name_digest FROM students WHERE id = ?').bind(studentId).first();
     const expected = await digest(env.DATA_SECRET, 'name', `${studentId}:${name}`);
     if (!found || found.name_digest !== expected) failure(400, '학번 또는 이름이 일치하지 않습니다. 입력 내용을 확인해주세요.', 'IDENTITY_MISMATCH');

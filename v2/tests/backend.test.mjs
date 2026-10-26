@@ -120,8 +120,25 @@ test('remote student identity, attendance and lookup work without external verif
   assert.equal(network.mock.callCount(), 0);
 });
 test('identity requests are rate limited by student on the server', async () => {
-  for (let i = 0; i < 8; i++) await request('/session', { body: { studentId: '26000001', name: '잘못된이름' } });
-  assert.equal((await request('/session', { body: { studentId: '26000001', name: '가상하나' } })).status, 429);
+  for (let i = 0; i < 5; i++) {
+    const result = await request('/session', { body: { studentId: '26000001', name: '잘못된이름' }, headers: { 'cf-connecting-ip': `203.0.113.${i + 1}` } });
+    assert.equal(result.status, 400); assert.equal(result.data.code, 'IDENTITY_MISMATCH');
+  }
+  const blocked = await request('/session', { body: { studentId: '26000001', name: '가상하나' }, headers: { 'cf-connecting-ip': '203.0.113.99' } });
+  assert.equal(blocked.status, 429); assert.equal(blocked.data.code, 'RATE_LIMITED');
+  assert.equal((await db.prepare("SELECT trial_count FROM students WHERE id = '26000001'").first()).trial_count, 0);
+  await db.prepare('UPDATE rate_limits SET resets_at = 0').run();
+  assert.equal((await request('/session', { body: { studentId: '26000001', name: '가상하나' } })).status, 200);
+});
+
+test('40 students on a shared IP remain independent even with a previously blocked IP bucket', async () => {
+  const ip = '203.0.113.10'; const cookie = await administrator();
+  const students = Array.from({ length: 40 }, (_, index) => ({ studentId: String(30000001 + index), name: `가상공유망${index + 1}` }));
+  assert.equal((await request('/admin/students', { cookie, body: { students } })).status, 200);
+  await db.prepare('INSERT INTO rate_limits (key, count, resets_at) VALUES (?, 999, ?)')
+    .bind(await digest(env.DATA_SECRET, 'rate:identity-ip', ip), Math.floor(Date.now() / 1000) + 60).run();
+  const results = await Promise.all(students.map(row => request('/session', { body: row, headers: { 'cf-connecting-ip': ip } })));
+  assert.ok(results.every(result => result.status === 200));
 });
 test('admin can unlock and approve with audit log; student cannot', async () => {
   const cookie = await administrator();

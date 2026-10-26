@@ -25,8 +25,7 @@ async function routes(request, env) {
     const body = await readJSON(request);
     requireConsent(body.consent);
     const { studentId, name } = studentInput(body);
-    await rateLimit(env.DB, env.DATA_SECRET, 'identity-ip', request.headers.get('cf-connecting-ip') || 'local', 30);
-    await rateLimit(env.DB, env.DATA_SECRET, 'identity-student', studentId, 8);
+    await rateLimit(env.DB, env.DATA_SECRET, 'identity-student', studentId, 5);
     const found = await env.DB.prepare('SELECT name_digest FROM students WHERE id = ?').bind(studentId).first();
     const expected = await digest(env.DATA_SECRET, 'name', `${studentId}:${name}`);
     if (!found || found.name_digest !== expected) failure(400, '학번 또는 이름이 일치하지 않습니다. 입력 내용을 확인해주세요.', 'IDENTITY_MISMATCH');

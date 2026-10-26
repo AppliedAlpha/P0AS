@@ -9,6 +9,21 @@ async function login(page) {
   await expect(page.getByRole('heading', { name: '학생 명단', exact: true })).toBeVisible();
 }
 
+async function expectRenderedWebFont(page, selector) {
+  await page.evaluate(() => document.fonts.ready);
+  const session = await page.context().newCDPSession(page);
+  try {
+    await session.send('DOM.enable'); await session.send('CSS.enable');
+    const { root } = await session.send('DOM.getDocument');
+    const { nodeId } = await session.send('DOM.querySelector', { nodeId: root.nodeId, selector });
+    const { fonts } = await session.send('CSS.getPlatformFontsForNode', { nodeId });
+    expect(fonts.some(font => font.isCustomFont && font.familyName.includes('Pretendard') && font.glyphCount > 0)).toBe(true);
+  } finally { await session.detach(); }
+  const fontUrls = await page.evaluate(() => performance.getEntriesByType('resource').filter(entry => entry.name.endsWith('.woff2')).map(entry => entry.name));
+  expect(fontUrls.length).toBeGreaterThan(0);
+  expect(fontUrls.every(url => url.startsWith(new URL('/fonts/pretendard/', page.url()).href))).toBe(true);
+}
+
 test('student consent, compact layouts and complete administrator controls', async ({ page }) => {
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   // Exercise the student UI with a deployed configuration, using only the isolated local test server.
@@ -20,6 +35,7 @@ test('student consent, compact layouts and complete administrator controls', asy
   mkdirSync('.impeccable/review', { recursive: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/'); await expect(page.getByRole('heading', { name: '현장 출석', exact: true })).toBeVisible();
+  await expectRenderedWebFont(page, '.form-title');
   expect(await page.locator('.student-page').evaluate(element => element.getBoundingClientRect().width)).toBeLessThanOrEqual(440);
   await expect(page.locator('footer,.environment,.status')).toHaveCount(0);
   await expect(page.getByText(/로컬|가상 데이터|개발용/)).toHaveCount(0);
@@ -37,6 +53,7 @@ test('student consent, compact layouts and complete administrator controls', asy
   await expect(page.getByRole('heading', { name: '출석이 확인되었습니다.' })).toBeVisible();
   await page.screenshot({ path: '.impeccable/review/result-mobile.png', fullPage: true });
   await page.goto('/check'); await page.getByLabel('학번', { exact: true }).fill('26000001'); await page.getByLabel('이름', { exact: true }).fill('가상하나');
+  await expectRenderedWebFont(page, '.form-title');
   await expect(page.getByRole('button', { name: '출석 결과 확인' })).toBeDisabled();
   await consent(page).check(); await expect(page.getByRole('button', { name: '출석 결과 확인' })).toBeEnabled(); await page.getByRole('button', { name: '출석 결과 확인' }).click();
   await expect(page.getByRole('heading', { name: '출석이 확인되었습니다.' })).toBeVisible();
@@ -44,7 +61,14 @@ test('student consent, compact layouts and complete administrator controls', asy
   await page.unroute('**/api/config');
   await login(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
+  await expectRenderedWebFont(page, '.admin-title-row h1');
   await expect(page.getByRole('button', { name: '관리자 로그아웃' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: '시도 횟수', exact: true })).toBeVisible();
+  await expect(page.locator('.student-table tbody tr').filter({ hasText: '26000001' }).locator('.attempt-count')).toHaveText('0회');
+  const lockedStudent = page.locator('.student-table tbody tr').filter({ hasText: '26000012' });
+  await expect(lockedStudent.locator('.attempt-count')).toHaveText('3회');
+  await lockedStudent.getByRole('button', { name: '잠금 해제', exact: true }).click();
+  await expect(lockedStudent.locator('.attempt-count')).toHaveText('0회');
   await expect(page.locator('footer,.environment,.status')).toHaveCount(0);
   await expect(page.getByText('가상하나', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: '이름 표시', exact: true }).click();

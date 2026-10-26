@@ -35,6 +35,10 @@
 
 ## 1. 로컬에서 먼저 확인
 
+기본 웹폰트와 명단의 시도 횟수 표시는 새 앱 배포로 적용됩니다. 로컬에서 `npm.cmd run lint`, `npm.cmd run build`, `npm.cmd run test:browser`를 실행해 빌드 성공과 브라우저 테스트 5개 통과를 확인합니다. 테스트는 독립 로컬 DB만 사용합니다.
+
+원격 적용 전 `v2`에서 `npx.cmd wrangler whoami`, `npx.cmd wrangler d1 list`로 의도한 계정·DB인지 확인하고 `wrangler.toml`의 대상과 대조합니다. 이번 표시 변경에는 DB 마이그레이션이나 환경값 추가가 필요하지 않습니다. Pages에서 새 커밋 배포가 성공하면 학생 출석·조회·관리자 페이지의 글꼴, 관리자 명단의 **시도 횟수** 열을 확인합니다. 개발자 도구 Network의 폰트 요청은 같은 도메인의 `/fonts/pretendard/`에서 성공해야 합니다. 명단의 횟수는 토큰 입력 실패 횟수이며 잠금 해제 후 0회로 바뀝니다. 원격 설정·DB·초기화는 이 변경에서 직접 실행하지 않았습니다.
+
 저장소 루트의 PowerShell에서:
 
 ```powershell

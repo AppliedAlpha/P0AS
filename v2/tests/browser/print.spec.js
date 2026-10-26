@@ -28,6 +28,7 @@ test('A4 tickets include reusable public QR and instructions on every ticket', a
   await page.getByRole('button', { name: '토큰 인쇄', exact: true }).click();
   await expect.poll(() => page.evaluate(() => !!window.__printCalled)).toBe(true);
   await page.emulateMedia({ media: 'print' });
+  await page.evaluate(() => document.fonts.ready);
   await page.setViewportSize({ width: 794, height: 1123 });
   await expect(page.locator('.admin-topbar')).toBeHidden();
   await expect(page.locator('.token-list')).toBeHidden();

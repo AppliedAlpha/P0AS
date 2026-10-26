@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "node scripts/browser-test.mjs",
+    "test:security:d1": "npm run check:functions && node scripts/security-d1-test.mjs",
     "db:local": "node scripts/db.mjs local",
     "qr:generate": "node scripts/generate-qr.mjs",
     "check:functions": "wrangler pages functions build functions --outdir .wrangler/functions"

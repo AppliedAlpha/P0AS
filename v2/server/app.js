@@ -25,11 +25,16 @@ async function routes(request, env) {
     const body = await readJSON(request);
     requireConsent(body.consent);
     const { studentId, name } = studentInput(body);
-    await rateLimit(env.DB, env.DATA_SECRET, 'identity-student', studentId, 5);
     const found = await env.DB.prepare('SELECT name_digest FROM students WHERE id = ?').bind(studentId).first();
+    // Unknown IDs share 256 keyed buckets so inventing IDs cannot create an
+    // unbounded number of persistent counters. Real students keep independent
+    // per-ID limits, unaffected by these buckets or a shared campus IP.
+    const rateKey = found ? studentId : (await digest(env.DATA_SECRET, 'unknown-identity', studentId)).slice(0, 2);
+    await rateLimit(env.DB, env.DATA_SECRET, found ? 'identity-student' : 'identity-unknown', rateKey, 5);
     const expected = await digest(env.DATA_SECRET, 'name', `${studentId}:${name}`);
     if (!found || found.name_digest !== expected) failure(400, '학번 또는 이름이 일치하지 않습니다. 입력 내용을 확인해주세요.', 'IDENTITY_MISMATCH');
-    return json({ student: await student(env.DB, studentId) }, 200, { 'Set-Cookie': await issueSession(env.DB, env, request, studentId) });
+    const cookie = await issueSession(env.DB, env, request, studentId, 'student', expected);
+    return json({ student: await student(env.DB, studentId) }, 200, { 'Set-Cookie': cookie });
   }
   if (path === '/api/logout' && method === 'POST') {
     // Revocation is checked by every authenticated request; expired tokens do not revive.
@@ -50,25 +55,38 @@ async function routes(request, env) {
     await rateLimit(env.DB, env.DATA_SECRET, 'attendance', identity.student_id, 6);
     if (typeof token !== 'string' || !/^\d{6}$/.test(token)) failure(400, '토큰은 숫자 6자리로 입력해주세요.', 'INVALID_INPUT');
     const tokenDigest = await digest(env.DATA_SECRET, 'token', token);
+    const liveSession = "SELECT 1 FROM sessions WHERE id = ? AND student_id = ? AND role = 'student' AND expires_at > CAST(strftime('%s', 'now') AS INTEGER)";
+    const eligible = `id = ? AND is_attended = 0 AND trial_count < 3 AND EXISTS (SELECT 1 FROM settings WHERE id = 1 AND state = 'OPEN') AND EXISTS (${liveSession})`;
+    const eligibleArgs = [identity.student_id, identity.session_id, identity.student_id];
+    const available = 'SELECT 1 FROM tokens WHERE digest = ? AND used_by IS NULL';
+    // The verdict, failure counter, audit log and successful claim all share
+    // one transaction. Separate failing INSERT/update calls let parallel
+    // guesses inspect more tokens before the third failure was persisted.
+    let results;
     try {
-      await env.DB.prepare('INSERT INTO claims (id, student_id, token_digest) VALUES (?, ?, ?)').bind(crypto.randomUUID(), identity.student_id, tokenDigest).run();
+      results = await env.DB.batch([
+        env.DB.prepare(`INSERT INTO claims (id, student_id, token_digest) SELECT ?, id, ? FROM students WHERE ${eligible} AND EXISTS (${available})`).bind(crypto.randomUUID(), tokenDigest, ...eligibleArgs, tokenDigest),
+        env.DB.prepare(`UPDATE students SET trial_count = trial_count + 1 WHERE ${eligible} AND NOT EXISTS (${available})`).bind(...eligibleArgs, tokenDigest),
+        env.DB.prepare("INSERT INTO logs (student_id, type, description) SELECT id, 'FAILURE', '유효하지 않거나 사용된 토큰 입력' FROM students WHERE id = ? AND changes() = 1").bind(identity.student_id),
+        env.DB.prepare(`SELECT ${studentColumns} FROM students WHERE id = ?`).bind(identity.student_id),
+        env.DB.prepare('SELECT state FROM settings WHERE id = 1'),
+        env.DB.prepare(liveSession).bind(identity.session_id, identity.student_id),
+      ]);
     } catch (error) {
       const message = String(error.message);
       if (message.includes('ATTENDANCE_CLOSED')) failure(409, '지금은 출석을 접수하지 않습니다. 운영자에게 확인해주세요.', 'CLOSED');
       if (message.includes('ALREADY_ATTENDED') || message.includes('claims.student_id')) failure(409, '이미 출석이 기록되어 있습니다. 결과 조회에서 확인해주세요.', 'ALREADY_ATTENDED');
       if (message.includes('STUDENT_LOCKED')) failure(423, '토큰 입력이 3회 일치하지 않아 잠겼습니다. 현장 운영자에게 문의해주세요.', 'LOCKED');
-      if (message.includes('INVALID_TOKEN') || message.includes('claims.token_digest')) {
-        await env.DB.batch([
-          env.DB.prepare('UPDATE students SET trial_count = trial_count + 1 WHERE id = ? AND is_attended = 0 AND trial_count < 3').bind(identity.student_id),
-          env.DB.prepare("INSERT INTO logs (student_id, type, description) VALUES (?, 'FAILURE', '유효하지 않거나 사용된 토큰 입력')").bind(identity.student_id),
-        ]);
-        const current = await student(env.DB, identity.student_id);
-        if (current.trial_count >= 3) failure(423, '토큰 입력이 3회 일치하지 않아 잠겼습니다. 현장 운영자에게 문의해주세요.', 'LOCKED');
-        failure(400, `유효하지 않거나 사용된 토큰입니다. 종이를 확인해주세요. (${current.trial_count}/3회)`, 'INVALID_TOKEN');
-      }
       throw error;
     }
-    return json({ student: await student(env.DB, identity.student_id) });
+    const current = results[3].results[0];
+    if (results[0].meta.changes) return json({ student: current });
+    if (!results[5].results.length) failure(401, '본인 정보를 다시 확인해주세요.', 'UNAUTHENTICATED');
+    if (results[4].results[0]?.state !== 'OPEN') failure(409, '지금은 출석을 접수하지 않습니다. 운영자에게 확인해주세요.', 'CLOSED');
+    if (!current) failure(401, '본인 정보를 다시 확인해주세요.', 'UNAUTHENTICATED');
+    if (current.is_attended) failure(409, '이미 출석이 기록되어 있습니다. 결과 조회에서 확인해주세요.', 'ALREADY_ATTENDED');
+    if (current.trial_count >= 3) failure(423, '토큰 입력이 3회 일치하지 않아 잠겼습니다. 현장 운영자에게 문의해주세요.', 'LOCKED');
+    failure(400, `유효하지 않거나 사용된 토큰입니다. 종이를 확인해주세요. (${current.trial_count}/3회)`, 'INVALID_TOKEN');
   }
   if (path === '/api/admin/local-login' && method === 'POST') {
     if (!localOnly(request, env)) failure(404, '페이지를 찾을 수 없습니다.');
@@ -203,8 +221,10 @@ async function routes(request, env) {
         const { studentId, name } = studentInput(row);
         if (unique.has(studentId)) failure(400, '명단에 중복된 학번이 있습니다.');
         unique.add(studentId);
+        const nameDigest = await digest(env.DATA_SECRET, 'name', `${studentId}:${normalizeName(name)}`);
+        statements.push(env.DB.prepare("DELETE FROM sessions WHERE student_id = ? AND role = 'student' AND EXISTS (SELECT 1 FROM students WHERE id = ? AND name_digest != ?)").bind(studentId, studentId, nameDigest));
         statements.push(env.DB.prepare(`INSERT INTO students (id, name, name_mask, name_digest) VALUES (?, ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET name = excluded.name, name_mask = excluded.name_mask, name_digest = excluded.name_digest`).bind(studentId, name, maskName(name), await digest(env.DATA_SECRET, 'name', `${studentId}:${normalizeName(name)}`)));
+          ON CONFLICT(id) DO UPDATE SET name = excluded.name, name_mask = excluded.name_mask, name_digest = excluded.name_digest`).bind(studentId, name, maskName(name), nameDigest));
       }
       statements.push(env.DB.prepare("INSERT INTO logs (type, description, actor) VALUES ('IMPORT', ?, ?)").bind(`명단 ${students.length}명 등록·갱신`, actor));
       await env.DB.batch(statements);

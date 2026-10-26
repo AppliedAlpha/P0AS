@@ -46,7 +46,8 @@ export async function digest(secret, domain, value) {
 export function normalizeName(value) { return String(value || '').normalize('NFC').trim().replace(/\s+/g, ' '); }
 export function maskName(value) { const chars = [...normalizeName(value)]; return chars.length < 2 ? '*' : chars[0] + '*'.repeat(chars.length - 2 || 1) + (chars.length > 2 ? chars.at(-1) : ''); }
 export function studentInput(body) {
-  const studentId = String(body.studentId || '').trim();
+  if (!body || typeof body.studentId !== 'string' || typeof body.name !== 'string') throw new HttpError(400, '학번과 이름을 확인해주세요.', 'INVALID_INPUT');
+  const studentId = body.studentId.trim();
   const name = normalizeName(body.name);
   if (!/^[A-Za-z0-9-]{4,24}$/.test(studentId) || name.length < 1 || name.length > 40) throw new HttpError(400, '학번과 이름을 확인해주세요.', 'INVALID_INPUT');
   return { studentId, name };
@@ -81,12 +82,20 @@ export async function rateLimit(db, secret, scope, value, limit = 10, seconds = 
     resets_at = CASE WHEN resets_at <= ? THEN excluded.resets_at ELSE resets_at END RETURNING count, resets_at`).bind(key, now + seconds, now, now).first();
   if (row.count > limit) throw new HttpError(429, '요청이 많습니다. 잠시 후 다시 시도해주세요.', 'RATE_LIMITED');
 }
-export async function issueSession(db, env, request, studentId, role = 'student') {
+export async function issueSession(db, env, request, studentId, role = 'student', nameDigest) {
   const id = crypto.randomUUID() + crypto.randomUUID();
   const expiresAt = Math.floor(Date.now() / 1000) + 1800;
   const signature = await digest(env.SESSION_SECRET, 'session', `${id}.${expiresAt}`);
-  await db.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(Math.floor(Date.now() / 1000)).run();
-  await db.prepare('INSERT INTO sessions (id, student_id, role, expires_at) VALUES (?, ?, ?, ?)').bind(await digest(env.SESSION_SECRET, 'sid', id), studentId, role, expiresAt).run();
+  const sessionId = await digest(env.SESSION_SECRET, 'sid', id);
+  const insert = role === 'student'
+    ? db.prepare("INSERT INTO sessions (id, student_id, role, expires_at) SELECT ?, id, 'student', ? FROM students WHERE id = ? AND name_digest = ?").bind(sessionId, expiresAt, studentId, nameDigest)
+    : db.prepare('INSERT INTO sessions (id, student_id, role, expires_at) VALUES (?, ?, ?, ?)').bind(sessionId, studentId, role, expiresAt);
+  const results = await db.batch([
+    db.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(Math.floor(Date.now() / 1000)),
+    insert,
+    db.prepare('DELETE FROM rate_limits WHERE key IN (SELECT key FROM rate_limits WHERE resets_at <= ? LIMIT 128)').bind(Math.floor(Date.now() / 1000)),
+  ]);
+  if (!results[1].meta.changes) throw new HttpError(400, '학번 또는 이름이 일치하지 않습니다. 입력 내용을 확인해주세요.', 'IDENTITY_MISMATCH');
   return `p0as_session=${id}.${expiresAt}.${signature}; Path=/api; HttpOnly; SameSite=Strict; Max-Age=1800${localOnly(request, env) ? '' : '; Secure'}`;
 }
 export async function session(request, env, role = 'student') {
@@ -97,9 +106,10 @@ export async function session(request, env, role = 'student') {
   const key = await crypto.subtle.importKey('raw', encoder.encode(env.SESSION_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
   const bytes = Uint8Array.from(signature.match(/../g), b => parseInt(b, 16));
   if (!await crypto.subtle.verify('HMAC', key, bytes, encoder.encode(`session\0${id}.${expires}`))) throw new HttpError(401, '인증을 다시 진행해주세요.', 'UNAUTHENTICATED');
-  const row = await env.DB.prepare('SELECT student_id, role FROM sessions WHERE id = ? AND expires_at > ?').bind(await digest(env.SESSION_SECRET, 'sid', id), Math.floor(Date.now() / 1000)).first();
+  const sessionId = await digest(env.SESSION_SECRET, 'sid', id);
+  const row = await env.DB.prepare('SELECT student_id, role FROM sessions WHERE id = ? AND expires_at > ?').bind(sessionId, Math.floor(Date.now() / 1000)).first();
   if (!row || row.role !== role) throw new HttpError(401, '인증을 다시 진행해주세요.', 'UNAUTHENTICATED');
-  return row;
+  return { ...row, session_id: sessionId };
 }
 export async function admin(request, env) {
   if (localOnly(request, env)) { await session(request, env, 'admin'); return 'local-admin'; }
@@ -110,7 +120,7 @@ export async function admin(request, env) {
   if (!/^https:\/\/[a-z0-9-]+\.cloudflareaccess\.com$/.test(issuer)) throw new HttpError(503, '관리자 인증 설정을 확인해주세요.');
   try {
     if (!keysets.has(issuer)) keysets.set(issuer, createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`)));
-    const { payload } = await jwtVerify(token, keysets.get(issuer), { issuer, audience: env.ACCESS_AUD, algorithms: ['RS256'] });
+    const { payload } = await jwtVerify(token, keysets.get(issuer), { issuer, audience: env.ACCESS_AUD, algorithms: ['RS256'], requiredClaims: ['exp', 'email'] });
     const allowed = env.ADMIN_EMAILS.split(',').map(x => x.trim().toLowerCase());
     if (!payload.email || !allowed.includes(payload.email.toLowerCase())) throw new Error('unauthorized');
     return payload.email;

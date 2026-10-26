@@ -131,6 +131,117 @@ test('admin can unlock and approve with audit log; student cannot', async () => 
   const row = await db.prepare("SELECT attendance_type, score FROM students WHERE id = '26000001'").first(); assert.deepEqual(row, { attendance_type: 'ASSIGNMENT', score: 5 });
   assert.equal((await request('/admin/approve', { body: { studentId: '26000001', type: 'MANUAL' }, cookie })).status, 409);
 });
+test('attendance revocation requires an administrator, confirmation and an attended student', async () => {
+  const path = '/admin/attendance/revoke'; const body = { studentId: '26000003', confirm: true };
+  assert.equal((await request(path, { body })).status, 401);
+  assert.equal((await request(path, { body, cookie: await identify() })).status, 401);
+  const cookie = await administrator();
+  for (const confirm of [undefined, false, 'true', 1]) assert.equal((await request(path, { cookie, body: { ...body, confirm } })).status, 400);
+  assert.equal((await request(path, { cookie, body: { ...body, studentId: {} } })).status, 400);
+  assert.equal((await request(path, { cookie, body: { ...body, studentId: '99999999' } })).status, 404);
+  assert.equal((await request(path, { cookie, body: { ...body, studentId: '26000001' } })).status, 409);
+  assert.equal((await request(path, { cookie, body, headers: { origin: 'https://attacker.example' } })).status, 403);
+  assert.equal((await db.prepare("SELECT is_attended FROM students WHERE id = '26000003'").first()).is_attended, 1);
+});
+
+test('attendance revocation refuses to change data until migration 0003 is applied', async () => {
+  const cookie = await administrator(); db.sqlite.exec('DROP INDEX tokens_used_by');
+  const result = await request('/admin/attendance/revoke', { cookie, body: { studentId: '26000003', confirm: true } });
+  assert.equal(result.status, 503); assert.equal(result.data.code, 'MIGRATION_REQUIRED');
+  assert.equal((await db.prepare("SELECT is_attended FROM students WHERE id = '26000003'").first()).is_attended, 1);
+  assert.equal((await db.prepare("SELECT count(*) AS count FROM claims WHERE student_id = '26000003'").first()).count, 1);
+});
+
+test('revoking field attendance preserves consumed tokens and permits a new token attendance', async () => {
+  const cookie = await administrator(); const studentCookie = await identify('26000003', '가상셋');
+  await db.prepare("UPDATE students SET trial_count = 1 WHERE id = '26000003'").run();
+  const tokenDigest = await digest(env.DATA_SECRET, 'token', '390681');
+  const tokenBefore = await db.prepare('SELECT * FROM tokens WHERE digest = ?').bind(tokenDigest).first();
+  const result = await request('/admin/attendance/revoke', { cookie, body: { studentId: '26000003', confirm: true } });
+  assert.equal(result.status, 200);
+  assert.deepEqual(await db.prepare('SELECT * FROM tokens WHERE digest = ?').bind(tokenDigest).first(), tokenBefore);
+  assert.equal((await db.prepare("SELECT count(*) AS count FROM claims WHERE student_id = '26000003'").first()).count, 0);
+  const absent = await request('/result', { cookie: studentCookie });
+  assert.equal(absent.status, 200);
+  assert.equal(absent.data.student.is_attended, 0); assert.equal(absent.data.student.score, 0);
+  assert.equal(absent.data.student.attendance_type, 'NONE'); assert.equal(absent.data.student.attended_at, null); assert.equal(absent.data.student.trial_count, 1);
+  const log = await db.prepare("SELECT * FROM logs WHERE type = 'REVOKE'").first();
+  assert.equal(log.actor, 'local-admin'); assert.equal(log.student_id, '26000003'); assert.match(log.description, /FIELD/);
+  assert.equal((await db.prepare("SELECT count(*) AS count FROM logs WHERE type = 'SUCCESS' AND student_id = '26000003'").first()).count, 1);
+  assert.equal((await attend(await identify(), '390681')).status, 400);
+  assert.equal((await attend(studentCookie, '482913')).status, 200);
+  assert.equal((await db.prepare("SELECT count(*) AS count FROM tokens WHERE used_by = '26000003'").first()).count, 2);
+  assert.deepEqual(await db.prepare('SELECT * FROM tokens WHERE digest = ?').bind(tokenDigest).first(), tokenBefore);
+});
+
+test('every attended type rejects a different unused token without consuming it', async () => {
+  const cookie = await administrator();
+  await request('/admin/approve', { cookie, body: { studentId: '26000001', type: 'MANUAL' } });
+  const hash = await digest(env.DATA_SECRET, 'token', '715204');
+  for (const [studentId, name] of [['26000003', '가상셋'], ['26000009', '가상아홉'], ['26000001', '가상하나']]) {
+    const result = await attend(await identify(studentId, name), '715204');
+    assert.equal(result.status, 409); assert.equal(result.data.code, 'ALREADY_ATTENDED');
+    assert.equal((await db.prepare('SELECT used_by FROM tokens WHERE digest = ?').bind(hash).first()).used_by, null);
+    await assert.rejects(db.prepare('INSERT INTO claims (id, student_id, token_digest) VALUES (?, ?, ?)').bind(`duplicate-${studentId}`, studentId, hash).run(), /ALREADY_ATTENDED/);
+  }
+});
+
+test('manual and assignment attendance can be revoked after closing without resetting failure counts', async () => {
+  const cookie = await administrator();
+  await request('/admin/approve', { cookie, body: { studentId: '26000001', type: 'MANUAL' } });
+  await db.prepare("UPDATE students SET trial_count = 2 WHERE id = '26000009'").run();
+  await db.prepare("UPDATE settings SET state = 'CLOSED'").run();
+  const tokensBefore = (await db.prepare('SELECT * FROM tokens ORDER BY digest').all()).results;
+  for (const studentId of ['26000001', '26000009']) {
+    assert.equal((await request('/admin/attendance/revoke', { cookie, body: { studentId, confirm: true } })).status, 200);
+    assert.deepEqual(await db.prepare('SELECT is_attended, attendance_type, score, attended_at FROM students WHERE id = ?').bind(studentId).first(), { is_attended: 0, attendance_type: 'NONE', score: 0, attended_at: null });
+  }
+  assert.equal((await db.prepare("SELECT trial_count FROM students WHERE id = '26000009'").first()).trial_count, 2);
+  assert.deepEqual((await db.prepare('SELECT * FROM tokens ORDER BY digest').all()).results, tokensBefore);
+});
+
+test('attendance revocation rolls back its claim removal and log if the student update fails', async t => {
+  t.mock.method(console, 'error', () => {});
+  const cookie = await administrator();
+  const logsBefore = (await db.prepare('SELECT count(*) AS count FROM logs').first()).count;
+  db.sqlite.exec("CREATE TRIGGER prevent_revoke BEFORE UPDATE OF is_attended ON students WHEN OLD.is_attended = 1 AND NEW.is_attended = 0 BEGIN SELECT RAISE(ABORT, 'simulated revoke failure'); END;");
+  assert.equal((await request('/admin/attendance/revoke', { cookie, body: { studentId: '26000003', confirm: true } })).status, 500);
+  assert.equal((await db.prepare("SELECT is_attended FROM students WHERE id = '26000003'").first()).is_attended, 1);
+  assert.equal((await db.prepare("SELECT count(*) AS count FROM claims WHERE student_id = '26000003'").first()).count, 1);
+  assert.equal((await db.prepare('SELECT count(*) AS count FROM logs').first()).count, logsBefore);
+});
+
+test('simultaneous attendance revocations change and log the attendance exactly once', async () => {
+  const cookie = await administrator(); const options = { cookie, body: { studentId: '26000003', confirm: true } };
+  const results = await Promise.all([request('/admin/attendance/revoke', options), request('/admin/attendance/revoke', options)]);
+  assert.deepEqual(results.map(result => result.status).sort(), [200, 409]);
+  assert.equal((await db.prepare("SELECT count(*) AS count FROM logs WHERE type = 'REVOKE'").first()).count, 1);
+  assert.equal((await db.prepare("SELECT count(*) AS count FROM tokens WHERE used_by = '26000003'").first()).count, 1);
+});
+
+test('0003 migration preserves occupied tokens, claims and encryption while allowing multiple past tokens', async () => {
+  const legacy = openLocalDatabase();
+  try {
+    legacy.sqlite.exec('CREATE TABLE local_migrations (name TEXT PRIMARY KEY)');
+    for (const name of ['0001_initial.sql', '0002_admin_management.sql']) {
+      legacy.sqlite.exec(readFileSync(new URL('../migrations/' + name, import.meta.url), 'utf8'));
+      legacy.sqlite.prepare('INSERT INTO local_migrations (name) VALUES (?)').run(name);
+    }
+    await seedLocal(legacy, env);
+    const before = (await legacy.prepare('SELECT * FROM tokens ORDER BY rowid').all()).results;
+    const claims = (await legacy.prepare('SELECT * FROM claims ORDER BY id').all()).results;
+    migrateLocal(legacy); migrateLocal(legacy);
+    assert.deepEqual((await legacy.prepare('SELECT * FROM tokens ORDER BY rowid').all()).results, before);
+    assert.deepEqual((await legacy.prepare('SELECT * FROM claims ORDER BY id').all()).results, claims);
+    assert.deepEqual(legacy.sqlite.prepare('PRAGMA foreign_key_check').all(), []);
+    const studentId = '26000003'; const hash = await digest(env.DATA_SECRET, 'token', '482913');
+    await legacy.prepare('DELETE FROM claims WHERE student_id = ?').bind(studentId).run();
+    await legacy.prepare('UPDATE students SET is_attended = 0 WHERE id = ?').bind(studentId).run();
+    await legacy.prepare('INSERT INTO claims (id, student_id, token_digest) VALUES (?, ?, ?)').bind('new-attendance', studentId, hash).run();
+    assert.equal((await legacy.prepare('SELECT count(*) AS count FROM tokens WHERE used_by = ?').bind(studentId).first()).count, 2);
+  } finally { legacy.close(); }
+});
+
 test('only authenticated administrators can retrieve all encrypted token originals', async () => {
   const cookie = await administrator();
   const created = await request('/admin/tokens', { cookie, body: { count: 5, label: '가상 테스트' } });

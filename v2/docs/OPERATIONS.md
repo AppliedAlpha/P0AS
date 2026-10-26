@@ -54,6 +54,58 @@ npm run test:browser
 
 테스트는 서명 위조·만료·세션 폐기, 관리자 권한, 타 출처 요청, 토큰 재사용, 동일 학생과 동일 토큰의 동시 제출, 3회 잠금, 종료 상태를 포함합니다. Node SQLite 테스트는 Cloudflare의 원격 실행환경이나 계정별 Access 설정까지 검증하지 않습니다. 원격 확인은 아래 7절에서 별도로 진행합니다.
 
+## 출석을 미출석으로 되돌리기
+
+학생 명단에서 출석한 학생 행의 **미출석 처리**를 누릅니다. 현장 출석·수동 승인·과제 인정 모두 확인창을 거쳐 같은 방식으로 취소합니다. 출석 여부 0, 유형 `NONE`, 점수 0, 처리 시각 없음으로 바뀌고 취소 활동이 추가됩니다. 실패 횟수와 기존 활동은 유지합니다. **사용 토큰의 번호·사용자·사용 시각은 변경하지 않습니다.** 재출석에는 다른 미사용 토큰이 필요합니다.
+
+이미 출석한 학생은 어떤 유형이든 다른 토큰으로 중복 출석할 수 없으며, 제출한 미사용 토큰도 소비되지 않습니다. [출결 판단 규칙](ATTENDANCE_RULES.md)에 변인별 결과와 예외를 정리했습니다.
+
+### 로컬 적용과 확인
+
+저장소 루트의 PowerShell에서:
+
+```powershell
+cd v2
+npm.cmd test
+npm.cmd run lint
+npm.cmd run build
+npm.cmd run check:functions
+npm.cmd run test:browser
+npx.cmd wrangler d1 migrations apply p0as-v2-staging --local
+npx.cmd wrangler d1 execute p0as-v2-staging --local --command "SELECT count(*) AS ready FROM sqlite_master WHERE type = 'index' AND name = 'tokens_used_by';"
+npx.cmd wrangler d1 execute p0as-v2-staging --local --command "PRAGMA foreign_key_check;"
+```
+
+예상 결과는 서버 테스트 44개(핵심 변인 504개 조합 포함), 브라우저 테스트 6개 통과와 두 빌드 성공, 0003 적용 성공, `ready = 1`, 외래키 오류 0건입니다. 테스트는 독립 메모리 DB와 매번 새 브라우저 테스트 DB를 사용하고, `--local` D1은 별도 로컬 에뮬레이터입니다. 원격 DB에는 연결하지 않습니다. 일반 Node 개발 서버는 시작 시 0003을 로컬에 자동 적용합니다.
+
+`0003_attendance_revocation.sql`은 한 학생이 과거에 사용한 토큰을 여러 개 보관하도록 `tokens.used_by`의 단일 값 제약을 제거합니다. 현재 출석의 학생·토큰 중복 제약과 검증 트리거는 유지합니다. 기존 토큰 암호문·사용 상태·현재 출석 연결을 모두 보존합니다. 이번 구현에서는 원격 ID가 없는 별도 로컬 D1에 사용 토큰이 있는 가상 데이터를 넣어 업그레이드와 재출석도 검증했습니다.
+
+### 원격 대상 확인, 백업, 적용
+
+```powershell
+npx.cmd wrangler whoami
+npx.cmd wrangler d1 list
+```
+
+의도한 계정인지, 목록의 DB ID가 `wrangler.toml`과 Pages의 `DB` 바인딩에 지정된 대상인지 대조합니다. 원격 키는 기존 값을 유지하고 로컬 키로 교체하지 않습니다. 원격 검증에는 새 가상 데이터만 사용합니다.
+
+```powershell
+$migrationBackup = Join-Path '.local' ('before-0003-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.sql')
+npx.cmd wrangler d1 export p0as-v2-staging --remote --output $migrationBackup
+$countSql = 'SELECT (SELECT count(*) FROM students) AS students, (SELECT count(*) FROM tokens) AS tokens, (SELECT count(*) FROM claims) AS claims, (SELECT count(*) FROM logs) AS logs;'
+npx.cmd wrangler d1 execute p0as-v2-staging --remote --command $countSql
+npx.cmd wrangler d1 migrations apply p0as-v2-staging --remote
+npx.cmd wrangler d1 execute p0as-v2-staging --remote --command $countSql
+npx.cmd wrangler d1 execute p0as-v2-staging --remote --command "SELECT count(*) AS ready FROM sqlite_master WHERE type = 'index' AND name = 'tokens_used_by';"
+npx.cmd wrangler d1 execute p0as-v2-staging --remote --command "PRAGMA foreign_key_check;"
+```
+
+예상 결과는 기존 명단·토큰·출석 연결·활동 수 유지, `ready = 1`, 외래키 오류 0건입니다. 백업은 원격 데이터를 보관한 파일이므로 로컬 개발 DB로 가져오지 않습니다. 원격 `DATA_SECRET`도 안전하게 유지해야 토큰 암호문을 계속 읽을 수 있습니다.
+
+0003 적용 후 새 앱을 배포합니다. 자동 배포가 먼저 끝나도 0003이 없으면 미출석 처리 API는 설정 오류로 거절하며 데이터를 바꾸지 않습니다. 원격 가상 학생의 출석을 취소하고 기존 토큰은 사용 완료로 남는지, 새 토큰으로만 재출석되는지 확인합니다. 이미 출석한 현장·수동·과제 학생은 새 토큰을 제출해도 기존 출석과 미사용 토큰이 유지되어야 합니다. 로컬 개발 DB는 원격 작업으로 바뀌지 않아야 합니다.
+
+이번 구현에서는 원격 DB 조회·마이그레이션·출석 취소를 직접 실행하지 않았습니다.
+
 ## 운영 설정의 모두 초기화
 
 `/manage` → **운영 설정 → 모두 초기화**는 학생 명단, 모든 출결·점수·잠금, 토큰과 발급 묶음, 활동 기록을 삭제합니다. 학생 세션과 요청 제한 상태도 비우며, 행사명은 `K-MOOC 특강`, 접수 상태는 `PRE`(출석 시작 전)로 되돌립니다. 관리자 인증 설정과 서버 비밀키, DB 스키마는 유지합니다. 경고창의 **취소**나 Esc는 데이터를 변경하지 않으며, 경고창에서 **모두 초기화**를 눌러야 실행됩니다.
@@ -73,7 +125,7 @@ npm.cmd run check:functions
 npm.cmd run test:browser
 ```
 
-예상 결과는 서버 테스트 32개, 브라우저 테스트 5개 통과와 두 빌드 성공입니다. 전체 초기화는 서버 테스트의 독립 메모리 DB와 매번 새로 생성하는 `.local/browser-tests/<UUID>/`에서만 실행합니다. 취소·Esc 시 미실행, 오류 후 재시도, 데이터 전체 삭제, 기본 설정 복원, 학생 세션 폐기, 중간 실패 시 전체 롤백을 확인합니다. 일반 개발 DB와 원격 DB는 이 테스트로 초기화되지 않습니다.
+예상 결과는 서버 테스트 44개, 브라우저 테스트 6개 통과와 두 빌드 성공입니다. 전체 초기화는 서버 테스트의 독립 메모리 DB와 매번 새로 생성하는 `.local/browser-tests/<UUID>/`에서만 실행합니다. 취소·Esc 시 미실행, 오류 후 재시도, 데이터 전체 삭제, 기본 설정 복원, 학생 세션 폐기, 중간 실패 시 전체 롤백을 확인합니다. 일반 개발 DB와 원격 DB는 이 테스트로 초기화되지 않습니다.
 
 일반 로컬 앱에서 직접 실행하면 `.local/p0as.sqlite`의 데이터가 삭제됩니다. 초기화 후에는 서버를 재시작해도 샘플이 자동 복구되지 않습니다. 최초 샘플 생성 여부는 로컬 전용 메타데이터로 보존합니다. 샘플 DB를 다시 만들려면 아래 3절처럼 기존 로컬 DB를 보관하고 새 DB를 생성합니다.
 
@@ -84,7 +136,7 @@ npx.cmd wrangler whoami
 npx.cmd wrangler d1 list
 ```
 
-현재 계정과 `wrangler.toml`의 DB 이름·ID를 대조하고 Pages의 `DB` 바인딩이 같은 DB를 가리키는지 확인합니다. 이번 변경은 추가 마이그레이션이나 서버 환경값 변경 없이 새 앱을 배포하면 적용됩니다. 로컬 전용 샘플 메타데이터는 원격 D1에 추가하지 않습니다.
+현재 계정과 `wrangler.toml`의 DB 이름·ID를 대조하고 Pages의 `DB` 바인딩이 같은 DB를 가리키는지 확인합니다. 모두 초기화 기능 자체에는 추가 마이그레이션이나 환경값 변경이 필요하지 않습니다. 최신 버전의 출석 취소 기능에는 앞 절의 0003을 적용합니다. 로컬 전용 샘플 메타데이터는 원격 D1에 추가하지 않습니다.
 
 원격에서 초기화까지 검증하려면 삭제해도 되는 가상 데이터만 있는 DB인지 확인합니다. 보관할 가상 데이터가 있다면 서로 다른 파일명으로 먼저 백업합니다.
 

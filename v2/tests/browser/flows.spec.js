@@ -151,6 +151,46 @@ test('mobile administrator can log out and lose data access', async ({ page }) =
   expect((await page.request.get('/api/admin/overview')).status()).toBe(401);
 });
 
+test('administrator marks an attended student absent while keeping used tokens consumed', async ({ page, browser, baseURL }) => {
+  const student = await browser.newContext({ baseURL });
+  try {
+    await page.setViewportSize({ width: 390, height: 844 }); await login(page);
+    const post = (path, data) => page.request.post(path, { headers: { origin: baseURL }, data });
+    await post('/api/admin/students', { students: [{ studentId: '29000001', name: '가상취소' }] });
+    const { codes } = await (await post('/api/admin/tokens', { count: 2, label: '출석 취소 검증용' })).json();
+    await post('/api/admin/settings', { title: 'K-MOOC 특강', state: 'OPEN' });
+    expect((await student.request.post('/api/session', { headers: { origin: baseURL }, data: { studentId: '29000001', name: '가상취소', consent: true } })).status()).toBe(200);
+    const attend = token => student.request.post('/api/attendance', { headers: { origin: baseURL }, data: { token, consent: true } });
+    expect((await attend(codes[0])).status()).toBe(200);
+    expect((await attend(codes[1])).status()).toBe(409);
+    const before = await (await page.request.get('/api/admin/overview')).json();
+    const oldToken = before.tokens.find(token => token.code === codes[0]);
+    await page.goto('/manage'); await page.getByRole('textbox', { name: '학번 또는 이름 검색' }).fill('29000001');
+    const row = page.locator('.student-table tbody tr').filter({ hasText: '29000001' });
+    await row.getByRole('button', { name: '미출석 처리', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: '미출석으로 변경하시겠습니까?' });
+    await expect(dialog).toContainText('이미 사용한 토큰과 활동 기록은 유지됩니다.');
+    await expect(dialog.getByRole('button', { name: '취소', exact: true })).toBeFocused();
+    await page.screenshot({ path: '.impeccable/review/revoke-confirm-mobile.png', fullPage: true });
+    await dialog.getByRole('button', { name: '취소', exact: true }).click();
+    await expect(row).toContainText('현장 출석');
+    await row.getByRole('button', { name: '미출석 처리', exact: true }).click();
+    await dialog.getByRole('button', { name: '미출석 처리', exact: true }).click();
+    await expect(dialog).toBeHidden(); await expect(row).toContainText('미출석');
+    await expect(row.getByRole('button', { name: '수동', exact: true })).toBeVisible();
+    const after = await (await page.request.get('/api/admin/overview')).json();
+    expect(after.tokens.find(token => token.code === codes[0])).toEqual(oldToken);
+    expect(after.tokens.find(token => token.code === codes[1]).used_by).toBeNull();
+    expect((await (await student.request.get('/api/result')).json()).student.is_attended).toBe(0);
+    expect((await attend(codes[1])).status()).toBe(200);
+    await page.getByRole('button', { name: '현황 새로고침', exact: true }).click();
+    await expect(row).toContainText('현장 출석');
+    const final = await (await page.request.get('/api/admin/overview')).json();
+    expect(final.tokens.filter(token => token.used_by === '29000001')).toHaveLength(2);
+    expect(final.tokens.find(token => token.code === codes[0])).toEqual(oldToken);
+  } finally { await student.close(); }
+});
+
 test('full reset requires warning confirmation, supports retry and clears all operational data', async ({ page, browser, baseURL }) => {
   const student = await browser.newContext({ baseURL });
   try {

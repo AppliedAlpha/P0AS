@@ -124,6 +124,21 @@ async function routes(request, env) {
       ]);
       return json({ ok: true });
     }
+    if (path === '/api/admin/attendance/revoke' && method === 'POST') {
+      const body = await readJSON(request);
+      if (body.confirm !== true) failure(400, '미출석 처리 안내를 확인해주세요.', 'CONFIRMATION_REQUIRED');
+      const studentId = typeof body.studentId === 'string' ? body.studentId.trim() : '';
+      if (!/^[A-Za-z0-9-]{4,24}$/.test(studentId)) failure(400, '학생을 확인해주세요.', 'INVALID_INPUT');
+      if (!await student(env.DB, studentId)) failure(404, '학생을 찾을 수 없습니다.');
+      if (!await env.DB.prepare("SELECT 1 AS ready FROM sqlite_master WHERE type = 'index' AND name = 'tokens_used_by'").first()) failure(503, 'DB 업데이트 후 미출석 처리를 사용할 수 있습니다.', 'MIGRATION_REQUIRED');
+      const results = await env.DB.batch([
+        env.DB.prepare("INSERT INTO logs (student_id, type, description, actor) SELECT id, 'REVOKE', '출석 취소 · ' || attendance_type || ' → 미출석', ? FROM students WHERE id = ? AND is_attended = 1").bind(actor, studentId),
+        env.DB.prepare('DELETE FROM claims WHERE student_id = ? AND EXISTS (SELECT 1 FROM students WHERE id = ? AND is_attended = 1)').bind(studentId, studentId),
+        env.DB.prepare("UPDATE students SET is_attended = 0, attendance_type = 'NONE', score = 0, attended_at = NULL WHERE id = ? AND is_attended = 1").bind(studentId),
+      ]);
+      if (!results[2].meta.changes) failure(409, '이미 미출석 상태인 학생입니다.', 'ALREADY_ABSENT');
+      return json({ ok: true });
+    }
     if (path === '/api/admin/unlock' && method === 'POST') {
       const body = await readJSON(request);
       if (!await student(env.DB, body.studentId)) failure(404, '학생을 찾을 수 없습니다.');

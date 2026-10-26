@@ -167,6 +167,7 @@ td strong{font-size:12px;font-weight:600}
 .row-actions button:hover{background:#eaf2eb;color:var(--green)}
 .row-actions button:disabled{color:#86948b;background:#f1f3f0}
 .row-actions .unlock-action{color:#985432}
+.row-actions .revoke-action{color:var(--danger)}
 .section-heading h2{font-size:14px;font-weight:650;letter-spacing:-.015em;display:flex;align-items:center;gap:7px}
 .activity-panel{padding-top:74px}
 .activity-panel .section-heading{padding:8px 0 18px;border-bottom:1px solid var(--line)}

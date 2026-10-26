@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpDown, Check, Eye, EyeOff, FileUp, LockKeyhole, Search } from 'lucide-react';
 import { Alert, Button } from './components';
 import { exportStudents, filterStudents, formatTime, parseRoster, typeLabels, visibleName } from './lib';
@@ -10,6 +10,16 @@ export default function StudentRoster({ students, busy, onAction }) {
   const [sort, setSort] = useState({ sortBy: 'id', direction: 'asc' });
   const [showNames, setShowNames] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [revoking, setRevoking] = useState(null);
+  const [revokeError, setRevokeError] = useState('');
+  const revokeDialog = useRef(null);
+  useEffect(() => { if (revoking && revokeDialog.current && !revokeDialog.current.open) revokeDialog.current.showModal(); }, [revoking]);
+  async function revokeAttendance() {
+    setRevokeError('');
+    const result = await onAction('revoke', '/admin/attendance/revoke', { studentId: revoking.id, confirm: true }, '미출석으로 변경했습니다.');
+    if (result) revokeDialog.current?.close();
+    else setRevokeError('미출석으로 변경하지 못했습니다. 학생 상태와 관리자 권한을 확인해주세요.');
+  }
   const filtered = useMemo(() => filterStudents(students, { query, filter, attendanceType, ...sort }), [students, query, filter, attendanceType, sort]);
   function sortColumn(sortBy) { setSort(previous => ({ sortBy, direction: previous.sortBy === sortBy && previous.direction === 'asc' ? 'desc' : 'asc' })); }
   function sortIcon(column) { return sort.sortBy !== column ? <ArrowUpDown size={13} /> : sort.direction === 'asc' ? <ArrowUp size={13} /> : <ArrowDown size={13} />; }
@@ -36,12 +46,19 @@ export default function StudentRoster({ students, busy, onAction }) {
             <td><span className={`attendance-label ${student.is_attended ? 'is-attended' : student.trial_count >= 3 ? 'is-locked' : ''}`}>{student.is_attended ? <Check size={13} /> : student.trial_count >= 3 ? <LockKeyhole size={12} /> : null}{student.trial_count >= 3 && !student.is_attended ? '입력 잠금' : typeLabels[student.attendance_type]}</span></td>
             <td className="numeric">{student.score}</td><td className="numeric attempt-count">{student.trial_count ?? 0}회</td>
             <td className="time-cell">{formatTime(student.attended_at)}</td>
-            <td><div className="row-actions">{!student.is_attended && <><button disabled={!!busy} onClick={() => onAction(student.id, '/admin/approve', { studentId: student.id, type: 'MANUAL' }, '수동 승인했습니다.')}>수동</button><button disabled={!!busy} onClick={() => onAction(student.id, '/admin/approve', { studentId: student.id, type: 'ASSIGNMENT' }, '과제 인정했습니다.')}>과제</button></>}{student.trial_count > 0 && <button className="unlock-action" disabled={!!busy} onClick={() => onAction(student.id, '/admin/unlock', { studentId: student.id }, '잠금을 해제했습니다.')}>잠금 해제</button>}</div></td>
+            <td><div className="row-actions">{student.is_attended ? <button className="revoke-action" disabled={!!busy} onClick={() => { setRevokeError(''); setRevoking(student); }}>미출석 처리</button> : <><button disabled={!!busy} onClick={() => onAction(student.id, '/admin/approve', { studentId: student.id, type: 'MANUAL' }, '수동 승인했습니다.')}>수동</button><button disabled={!!busy} onClick={() => onAction(student.id, '/admin/approve', { studentId: student.id, type: 'ASSIGNMENT' }, '과제 인정했습니다.')}>과제</button></>}{student.trial_count > 0 && <button className="unlock-action" disabled={!!busy} onClick={() => onAction(student.id, '/admin/unlock', { studentId: student.id }, '잠금을 해제했습니다.')}>잠금 해제</button>}</div></td>
           </tr>)}</tbody>
         </table>
       </div>
       {!filtered.length && <div className="empty-state"><Search size={25} /><h3>{students.length ? '검색 결과가 없습니다.' : '등록된 학생이 없습니다.'}</h3></div>}
     </div>
+    <dialog ref={revokeDialog} className="confirm-dialog" aria-labelledby="revoke-dialog-title" aria-describedby="revoke-dialog-description" onClose={() => setRevoking(null)} onCancel={event => { if (busy) event.preventDefault(); }}>
+      <h2 id="revoke-dialog-title">미출석으로 변경하시겠습니까?</h2>
+      {revoking && <p><strong>{revoking.id} · {visibleName(revoking, showNames)}</strong></p>}
+      <p id="revoke-dialog-description">출석 유형·점수·처리 시각을 지웁니다. 이미 사용한 토큰과 활동 기록은 유지됩니다.<br />다시 출석하려면 새 토큰이 필요합니다.</p>
+      {revokeError && <Alert>{revokeError}</Alert>}
+      <div className="inline-actions"><Button className="button-secondary" autoFocus disabled={!!busy} onClick={() => revokeDialog.current.close()}>취소</Button><Button className="button-danger" busy={busy === 'revoke'} disabled={!!busy} onClick={revokeAttendance}>미출석 처리</Button></div>
+    </dialog>
   </section>;
 }
 

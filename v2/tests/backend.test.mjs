@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { openLocalDatabase, migrateLocal, seedLocal } from '../scripts/local-db.mjs';
 import { handleRequest } from '../server/app.js';
 import { decryptToken, digest, encryptToken } from '../server/security.js';
-import { csvCell, filterStudents, parseRoster, visibleName } from '../src/lib.js';
+import { csvCell, filterStudents, filterTokens, parseRoster, visibleName } from '../src/lib.js';
 
 let db; let env;
 beforeEach(async () => {
@@ -441,4 +441,26 @@ test('roster type filters, ID/time ordering and masking match the chosen control
   for (const type of ['FIELD', 'MANUAL', 'ASSIGNMENT']) assert.equal(filterStudents(rows, { filter: 'attended', attendanceType: type }).length, 1);
   assert.equal(filterStudents(rows, { filter: 'locked' })[0].id, '1');
   assert.equal(visibleName(rows[0], false), '가**나'); assert.equal(visibleName(rows[0], true), '가상하나');
+});
+
+test('token filters combine search and status, sort all requested columns and keep empty values last', () => {
+  const rows = [
+    { id: 'a', code: '000010', used_by: '26000010', used_at: '2026-10-27T03:00:00Z' },
+    { id: 'b', code: '000002', used_by: '26000002', used_at: '2026-10-27T10:00:00+09:00' },
+    { id: 'c', code: '000100', used_by: null, used_at: null },
+    { id: 'd', code: '001000', used_by: '26000002', used_at: '2026-10-27T02:00:00Z' },
+    { id: 'e', code: null, used_by: null, used_at: null },
+  ];
+  const original = structuredClone(rows);
+  const ids = options => filterTokens(rows, options).map(token => token.id);
+  assert.deepEqual(ids(), ['b', 'a', 'c', 'd', 'e']);
+  assert.deepEqual(ids({ sortBy: 'code', direction: 'desc' }), ['d', 'c', 'a', 'b', 'e']);
+  assert.deepEqual(ids({ sortBy: 'used_by', direction: 'asc' }), ['b', 'd', 'a', 'c', 'e']);
+  assert.deepEqual(ids({ sortBy: 'used_by', direction: 'desc' }), ['a', 'b', 'd', 'c', 'e']);
+  assert.deepEqual(ids({ sortBy: 'used_at', direction: 'asc' }), ['b', 'd', 'a', 'c', 'e']);
+  assert.deepEqual(ids({ sortBy: 'used_at', direction: 'desc' }), ['a', 'd', 'b', 'c', 'e']);
+  assert.deepEqual(ids({ status: 'unused' }), ['c', 'e']);
+  assert.deepEqual(ids({ status: 'used', query: ' 26000002 ' }), ['b', 'd']);
+  assert.deepEqual(ids({ status: 'unused', query: '26000002' }), []);
+  assert.deepEqual(rows, original);
 });

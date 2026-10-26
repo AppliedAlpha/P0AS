@@ -14,6 +14,26 @@ export function downloadFile(name, text, type = 'text/plain;charset=utf-8') {
 }
 export function csvCell(value) { const text = String(value ?? ''); return '"' + (/^[=+\-@\t\r]/.test(text) ? "'" + text : text).replaceAll('"', '""') + '"'; }
 export function visibleName(student, showNames) { return showNames ? student.name || student.name_mask : student.name_mask; }
+export function filterTokens(tokens, { query = '', status = 'all', sortBy = 'code', direction = 'asc' } = {}) {
+  const search = query.trim();
+  const collator = new Intl.Collator('ko', { numeric: true });
+  const byCode = (a, b) => {
+    if (!a.code && b.code) return 1;
+    if (a.code && !b.code) return -1;
+    return collator.compare(a.code || '', b.code || '') || collator.compare(a.id, b.id);
+  };
+  return tokens.filter(token => {
+    if (status === 'unused' && token.used_by || status === 'used' && !token.used_by) return false;
+    return !search || `${token.code || ''} ${token.used_by || ''}`.includes(search);
+  }).sort((a, b) => {
+    const first = a[sortBy]; const second = b[sortBy];
+    if (!first && !second) return byCode(a, b);
+    if (!first) return 1;
+    if (!second) return -1;
+    const difference = sortBy === 'used_at' ? Date.parse(first) - Date.parse(second) : collator.compare(first, second);
+    return (direction === 'asc' ? difference : -difference) || byCode(a, b);
+  });
+}
 export function filterStudents(students, { query = '', filter = 'all', attendanceType = 'all', sortBy = 'id', direction = 'asc' } = {}) {
   const collator = new Intl.Collator('ko', { numeric: true });
   return students.filter(student => {

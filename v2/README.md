@@ -4,6 +4,8 @@ React + Cloudflare Pages Functions + D1 기반 현장 출결 앱. **현재 모�
 
 [보안 점검·보완과 남는 위험](docs/SECURITY.md), [학생 API 요청·응답 예시](docs/STUDENT_API.md)를 참고하세요. 동시 대입의 3회 잠금·세션 폐기 경계를 보완했으며, `npm run test:security:d1`으로 독립된 로컬 D1에서도 검사할 수 있습니다.
 
+학생의 **대체과제 증빙 방법** 탭은 사유별 준비 서류와 제출 순서를 안내합니다. 다운로드할 실제 과제·양식은 `public/documents/`에 넣습니다. [파일명과 로컬 확인 → 원격 배포 확인](docs/ASSIGNMENT_GUIDE.md)을 참고하세요.
+
 ## 로컬에서 먼저 실행
 
 Node.js 24 이상이 필요합니다. 저장소 루트에서:

@@ -68,13 +68,34 @@ input:disabled{background:#edf0ee;color:var(--muted)}
 .student-header{height:90px;display:flex;align-items:center}
 .student-layout{width:100%}
 .event-title{font-size:21px;font-weight:650;letter-spacing:-.025em;line-height:1.5;overflow-wrap:anywhere;margin:14px 0 26px}
-.student-tabs{display:flex;gap:28px;border-bottom:1px solid var(--line);margin-bottom:30px}
-.student-tabs a{position:relative;font-size:13px;font-weight:600;padding-bottom:14px;color:var(--muted)}
+.student-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-bottom:1px solid var(--line);margin-bottom:30px}
+.student-tabs a{position:relative;min-width:0;min-height:56px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:13px;font-weight:600;line-height:1.5;padding:9px 4px 14px;color:var(--muted);word-break:keep-all}
 .student-tabs a[aria-current=page]{color:var(--green)}
 .student-tabs a[aria-current=page]:after{content:'';position:absolute;height:2px;background:var(--green);left:0;right:0;bottom:-1px}
 .student-tabs a:hover{color:var(--green)}
 .form-title{font-size:23px;font-weight:650;letter-spacing:-.03em;margin-bottom:26px}
 .attendance-form{display:flex;flex-direction:column;gap:22px}
+.assignment-guide .form-title{line-height:1.5;word-break:keep-all;text-wrap:balance}
+.assignment-reasons{display:flex;flex-direction:column;gap:10px}
+.assignment-reasons>button{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:52px;padding:13px 15px;text-align:left;font-size:14px;line-height:1.6;word-break:keep-all;border:1px solid var(--line);border-radius:8px;background:var(--paper);transition:background .18s,border-color .18s}
+.assignment-reasons>button:hover{background:var(--soft);border-color:#9fb4a6}
+.assignment-reasons>button[aria-pressed=true]{color:var(--green);background:var(--soft);border-color:var(--green);font-weight:650}
+.reason-check{display:grid;place-items:center;width:20px;height:20px;flex-shrink:0;border:1px solid #9fb4a6;border-radius:50%;color:var(--paper)}
+.assignment-reasons>button[aria-pressed=true] .reason-check{background:var(--green);border-color:var(--green)}
+.assignment-instructions:not(:empty){margin-top:30px;padding-top:26px;border-top:1px solid var(--line)}
+.assignment-instructions h3{font-size:16px;font-weight:650;line-height:1.6;word-break:keep-all;margin-bottom:22px}
+.assignment-steps{margin:0;padding-left:24px;font-size:14px;line-height:1.85;word-break:keep-all;overflow-wrap:anywhere}
+.assignment-steps>li{padding-left:5px;margin-bottom:22px}
+.assignment-steps>li:last-child{margin-bottom:0}
+.assignment-steps>li::marker{font-weight:650;color:var(--green);font-variant-numeric:tabular-nums}
+.assignment-steps strong{font-weight:650}
+.document-downloads{display:flex;flex-direction:column;gap:8px;margin-top:13px}
+.document-download{justify-content:flex-start;width:100%;min-height:48px;padding:12px;font-size:13px;white-space:normal;text-align:left;line-height:1.5}
+.document-download small{margin-left:auto;white-space:nowrap;font-size:11px;font-weight:500}
+.assignment-warning{font-size:14px;line-height:1.85;word-break:keep-all}
+.assignment-warning .assignment-warning-text{color:var(--danger);margin-bottom:22px}
+.assignment-warning-text strong{font-weight:750}
+.assignment-warning>.button{margin-top:18px}
 .attendance-form .field input{font-size:16px;min-height:51px}
 .token-field{display:flex;flex-direction:column;gap:10px}
 .token-input{width:100%;min-width:0;border:1px solid #b6cbbd;border-radius:8px;color:var(--green);background:#edf4ef;font-family:inherit;font-weight:600;font-variant-numeric:tabular-nums;font-size:28px;letter-spacing:.4em;text-align:center;height:68px;padding:12px 8px 12px 20px}

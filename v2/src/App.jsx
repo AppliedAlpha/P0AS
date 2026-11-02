@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Check, ClipboardCheck, LockKeyhole } from 'lucid
 import { api, formatTime, typeLabels } from './lib';
 import { Alert, Brand, Button, Field } from './components';
 import PrivacyConsent from './PrivacyConsent';
+import AssignmentGuide from './AssignmentGuide';
 
 const Admin = lazy(() => import('./Admin'));
 function PageLoading() { return <div className="page-loading" role="status"><Brand /><div className="skeleton" /><p>불러오는 중…</p></div>; }
@@ -19,7 +20,20 @@ export default function App() {
   if (error) return <div className="page-loading"><Brand /><Alert>{error}</Alert><Button onClick={() => location.reload()}>다시 연결</Button></div>;
   if (!config) return <PageLoading />;
   if (location.pathname.startsWith('/manage')) return <Suspense fallback={<PageLoading />}><Admin config={config} /></Suspense>;
+  if (location.pathname === '/assignment') return <StudentLayout title={config.title} current="assignment"><AssignmentGuide /></StudentLayout>;
   return <Student config={config} lookup={location.pathname === '/check'} />;
+}
+
+function StudentLayout({ title, current, children }) {
+  const tabs = [{ key: 'attendance', href: '/', label: '출석하기' }, { key: 'lookup', href: '/check', label: '결과 조회' }, { key: 'assignment', href: '/assignment', label: '대체과제 증빙 방법' }];
+  return <div className="student-page">
+    <header className="student-header"><Brand /></header>
+    <main id="main" className="student-layout">
+      <h1 className="event-title">{title}</h1>
+      <nav className="student-tabs" aria-label="출결 메뉴">{tabs.map(tab => <a key={tab.key} href={tab.href} aria-current={current === tab.key ? 'page' : undefined}>{tab.label}</a>)}</nav>
+      {children}
+    </main>
+  </div>;
 }
 
 function Student({ config, lookup }) {
@@ -43,11 +57,7 @@ function Student({ config, lookup }) {
     try { await api('/logout', {}); setResult(null); setForm({ studentId: '', name: '', token: '' }); setConsent(false); setLocked(false); setError(''); }
     catch (error) { setError(error.message); }
   }
-  return <div className="student-page">
-    <header className="student-header"><Brand /></header>
-    <main id="main" className="student-layout">
-      <h1 className="event-title">{config.title}</h1>
-      <nav className="student-tabs" aria-label="출결 메뉴"><a href="/" aria-current={!lookup ? 'page' : undefined}>출석하기</a><a href="/check" aria-current={lookup ? 'page' : undefined}>결과 조회</a></nav>
+  return <StudentLayout title={config.title} current={lookup ? 'lookup' : 'attendance'}>
       <section className="student-workspace" aria-label={lookup ? '출석 결과 조회' : '출석 등록'}>
         {result ? <Result student={result} onReset={reset} /> : <>
           <h2 className="form-title">{lookup ? '출석 결과 조회' : '현장 출석'}</h2>
@@ -61,8 +71,7 @@ function Student({ config, lookup }) {
           </form>}
         </>}
       </section>
-    </main>
-  </div>;
+  </StudentLayout>;
 }
 
 function Result({ student, onReset }) {

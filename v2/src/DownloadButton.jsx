@@ -5,7 +5,10 @@ const checks = new Map();
 function documentAvailable(href) {
   if (!checks.has(href)) checks.set(href, fetch(href, { method: 'HEAD', cache: 'no-store', credentials: 'same-origin' }).then(response => {
     const type = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
-    return response.ok && ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/octet-stream'].includes(type);
+    // Static hosts may omit DOCX's MIME type. A known document path can still
+    // be downloaded; explicit HTML fallbacks and other media remain rejected.
+    const untypedDocument = !type && /\.(docx|pdf)$/i.test(new URL(href, location.href).pathname);
+    return response.ok && (untypedDocument || ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/octet-stream'].includes(type));
   }).catch(() => false));
   return checks.get(href);
 }

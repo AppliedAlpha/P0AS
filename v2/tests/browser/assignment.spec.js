@@ -9,7 +9,7 @@ test('assignment guidance has equal tabs, reason-specific steps and safe reusabl
   let documentsReady = false;
   await page.context().route('**/documents/*', route => route.fulfill(documentsReady ? {
     status: 200,
-    contentType: route.request().url().endsWith('.pdf') ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    contentType: route.request().url().endsWith('.pdf') ? 'application/pdf' : '',
     body: route.request().method() === 'HEAD' ? '' : fixture,
   } : { status: 200, contentType: 'text/html', body: '<!doctype html><title>Missing document fallback</title>' }));
   await page.setViewportSize({ width: 390, height: 844 });

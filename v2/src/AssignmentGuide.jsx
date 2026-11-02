@@ -3,10 +3,10 @@ import { Check, Mail } from 'lucide-react';
 import DownloadButton from './DownloadButton';
 
 const documents = {
-  assignment: { label: '대체과제 (DOCX)', href: '/documents/assignment.docx' },
-  absence: { label: '불참사유서 (DOCX)', href: '/documents/absence-reason.docx' },
-  class: { label: '수업증빙서 (PDF)', href: '/documents/class-confirmation.pdf' },
-  duty: { label: '수업업무증빙서 (PDF)', href: '/documents/duty-confirmation.pdf' },
+  assignment: { label: '대체과제 (DOCX)', href: '/documents/대체과제.docx' },
+  absence: { label: '불참사유서 (DOCX)', href: '/documents/불참사유서.docx' },
+  class: { label: '수업증빙서 (PDF)', href: '/documents/수업증빙서.pdf' },
+  duty: { label: '수업업무증빙서 (PDF)', href: '/documents/수업업무증빙서.pdf' },
 };
 const reasons = [
   { id: 'class', label: '타 수업/시험과 중복', proof: '수업증빙서' },

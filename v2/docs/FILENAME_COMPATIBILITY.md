@@ -45,4 +45,6 @@ Content-Disposition: attachment; filename="assignment.docx"; filename*=UTF-8''%E
 
 실제 로컬 preview 서버에서 DOCX 응답의 `Content-Type`이 생략되는 경우를 확인했습니다. 파일이 존재해도 버튼이 준비 중으로 남는 문제를 수정했습니다. 성공 응답이며 경로 확장자가 DOCX/PDF인 무유형 응답을 허용하고, 명시적인 HTML fallback이나 다른 미디어 유형은 계속 거절합니다. 브라우저 테스트에서 무유형 DOCX와 HTML fallback을 함께 검증합니다.
 
-실제 파일 이름이 정해지면 `src/AssignmentGuide.jsx`의 URL도 그 이름에 맞춰 변경해야 합니다. 한글명 확인 작업만으로 기존 영문 URL을 자동 변경하지 않았습니다. 배포 전 로컬에서 파일을 열고 내려받은 뒤, 올바른 Pages 프로젝트에 반영하여 각 기기에서 저장된 이름·확장자·열기를 확인합니다. 로컬 확인 → 원격 대상 확인 → 원격 배포·확인의 명령과 기대 결과는 [대체과제 파일 배포](ASSIGNMENT_GUIDE.md)에 있습니다.
+2026-11-02의 위 가상 파일 검사에서는 영문 URL을 유지했습니다. 2026-11-03에는 사용자가 제공한 실제 문서 네 개에 맞춰 `src/AssignmentGuide.jsx`의 URL을 한글 경로로 연결했습니다. 이름은 모두 NFC이며 DOCX 두 개의 ZIP 무결성과 PDF 두 개의 구조(각 1페이지)를 확인했습니다. 빌드 복사본과 원본의 SHA-256이 모두 같으며, production preview의 Windows Edge·Chromium Android 설정·Windows WebKit·WebKit iPhone 설정에서 실제 파일 16회 다운로드의 이름과 SHA-256도 일치했습니다. 실기기 Android·iOS·macOS와 원격 Pages는 이 검사에 포함되지 않습니다.
+
+올바른 Pages 프로젝트에 반영한 뒤 각 실제 기기에서 저장된 이름·확장자·열기를 확인합니다. 로컬 확인 → 원격 대상 확인 → 원격 배포·확인의 명령과 기대 결과는 [대체과제 파일 배포](ASSIGNMENT_GUIDE.md)에 있습니다.

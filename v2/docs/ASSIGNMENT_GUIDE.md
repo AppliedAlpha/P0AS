@@ -8,14 +8,14 @@
 
 | 문서 | 로컬 경로 | 사이트 경로 |
 |---|---|---|
-| 대체과제 | `v2/public/documents/assignment.docx` | `/documents/assignment.docx` |
-| 불참사유서 | `v2/public/documents/absence-reason.docx` | `/documents/absence-reason.docx` |
-| 수업증빙서 | `v2/public/documents/class-confirmation.pdf` | `/documents/class-confirmation.pdf` |
-| 수업업무증빙서 | `v2/public/documents/duty-confirmation.pdf` | `/documents/duty-confirmation.pdf` |
+| 대체과제 | `v2/public/documents/대체과제.docx` | `/documents/대체과제.docx` |
+| 불참사유서 | `v2/public/documents/불참사유서.docx` | `/documents/불참사유서.docx` |
+| 수업증빙서 | `v2/public/documents/수업증빙서.pdf` | `/documents/수업증빙서.pdf` |
+| 수업업무증빙서 | `v2/public/documents/수업업무증빙서.pdf` | `/documents/수업업무증빙서.pdf` |
 
-공결처리요청서는 다운로드 목록에 포함하지 않습니다. 학사정보시스템에서 공결 승인을 받은 뒤 출력하도록 안내합니다. 실제 양식·과제는 사용자가 제공할 예정이며 임의의 과제나 공식 서류를 생성하지 않았습니다. 파일이 없는 동안에는 버튼에 **준비 중**을 표시합니다.
+공결처리요청서는 다운로드 목록에 포함하지 않습니다. 학사정보시스템에서 공결 승인을 받은 뒤 출력하도록 안내합니다. 2026-11-03에 사용자가 제공한 과제·양식 네 개를 위 한글 경로로 연결했습니다. 파일 이름은 모두 NFC이며 DOCX 두 개의 ZIP 구조와 PDF 두 개의 구조(각 1페이지)를 확인했습니다. 제공된 파일 내용은 수정하지 않았습니다. 파일이 누락되면 버튼에 **준비 중**을 표시합니다.
 
-한글 파일명은 로컬 Edge·WebKit에서 경로와 저장 이름을 검사했습니다. 현재 표의 영문 경로는 그대로이며 한글명을 확정하면 실제 이름과 링크를 함께 맞춥니다. NFC/NFD 경로 차이와 실제 Android·iOS·macOS에서 남은 확인 범위는 [파일명 호환성 기록](FILENAME_COMPATIBILITY.md)을 참고하세요. DOCX/PDF 응답이 정상인데 Content-Type만 생략되면 다운로드를 허용하고, 명시적인 HTML 응답은 계속 차단합니다.
+한글 파일명은 로컬 Edge·WebKit에서 경로와 저장 이름을 검사했습니다. 실제 파일명과 링크를 함께 맞추며, 브라우저가 URL의 한글을 UTF-8로 인코딩해 요청합니다. NFC/NFD 경로 차이와 실제 Android·iOS·macOS에서 남은 확인 범위는 [파일명 호환성 기록](FILENAME_COMPATIBILITY.md)을 참고하세요. DOCX/PDF 응답이 정상인데 Content-Type만 생략되면 다운로드를 허용하고, 명시적인 HTML 응답은 계속 차단합니다.
 
 공개 폴더에는 배포용 과제와 빈 양식만 넣습니다. 작성된 학생 증빙이나 학번·이름·시간표·사진·서명이 들어간 개인 파일은 넣지 않습니다.
 
@@ -35,7 +35,7 @@ npm.cmd run test:browser
 Get-ChildItem -LiteralPath dist/documents
 ```
 
-기대 결과는 lint·빌드 성공, 브라우저 테스트 8개 통과와 배포할 문서의 `dist/documents/` 복사입니다. 브라우저 테스트는 독립 로컬 DB와 가상 응답으로 네 사유, 동등한 탭 너비, 좁은 화면, SVG 아이콘·문서 경로·버튼 상태, NP 경고와 메일 주소를 검사합니다. 실제 과제 파일 내용이나 실제 파일 다운로드를 대신 검증하지 않습니다. 파일이 아직 없다면 빌드 결과에도 실제 문서는 없습니다.
+기대 결과는 lint·빌드 성공, 브라우저 테스트 9개 통과와 문서 네 개의 `dist/documents/` 복사입니다. 브라우저 테스트는 독립 로컬 DB와 가상 응답으로 네 사유, 동등한 탭 너비, 좁은 화면, SVG 아이콘·문서 경로·버튼 상태, NP 경고와 메일 주소를 검사합니다. 별도 통합 테스트는 가로채기 없이 실제 로컬 다운로드 네 건의 한글 저장 이름과 원본 SHA-256 일치를 확인합니다. DOCX/PDF에서 과제·서류 내용을 읽고 편집하는 작업은 파일을 사용하는 앱에서도 확인합니다.
 
 다운로드 모양과 가용성 판단은 `src/DownloadButton.jsx`, 문구·다운로드 URL은 `src/AssignmentGuide.jsx`에서 공통으로 관리합니다. 버튼에 문구와 URL만 전달하면 동일한 SVG·스타일을 사용합니다.
 
@@ -57,12 +57,13 @@ npx.cmd wrangler pages project list
 ```powershell
 $guideSite = 'https://p0as.applied.kr'
 (Invoke-WebRequest -Uri "$guideSite/assignment" -Method Head).StatusCode
-foreach ($guideFile in @('assignment.docx', 'absence-reason.docx', 'class-confirmation.pdf', 'duty-confirmation.pdf')) {
-    $guideResponse = Invoke-WebRequest -Uri "$guideSite/documents/$guideFile" -Method Head
+foreach ($guideFile in @('대체과제.docx', '불참사유서.docx', '수업증빙서.pdf', '수업업무증빙서.pdf')) {
+    $guidePath = [Uri]::EscapeDataString($guideFile)
+    $guideResponse = Invoke-WebRequest -Uri "$guideSite/documents/$guidePath" -Method Head
     [pscustomobject]@{ File = $guideFile; Status = $guideResponse.StatusCode; Type = $guideResponse.Headers['Content-Type'] }
 }
 ```
 
 기대 결과는 안내 페이지 200, 업로드한 문서 각각 200과 DOCX/PDF 문서 Content-Type입니다. 문서 요청이 200이어도 `text/html`이면 파일 누락·경로 오타·배포 상태를 확인합니다. 실제 원격 화면을 새로고침하고 버튼을 눌러 다운로드한 파일도 확인합니다. 공결 사유에는 두 문서만, 다른 두 사유에는 세 문서가 표시되어야 합니다. 미해당 사유의 빨간 굵은 NP 경고와 `kmooc@applied.kr` 메일 버튼을 확인합니다.
 
-이번 구현에서는 원격 DB 쓰기·직접 배포·Access 정책 변경·실제 문서 업로드를 실행하지 않았습니다. GitHub 푸시는 연결된 Pages 자동 배포를 시작할 수 있으므로 실제 배포 상태와 파일 응답은 별도로 확인합니다.
+이번 연결에서는 제공 문서를 저장소에 반영하며 원격 DB 쓰기·Cloudflare 직접 배포·Access 정책 변경은 실행하지 않았습니다. GitHub 푸시는 연결된 Pages 자동 배포를 시작할 수 있으므로 실제 배포 상태와 파일 응답은 별도로 확인합니다.

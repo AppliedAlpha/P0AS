@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
 test('assignment guidance has equal tabs, reason-specific steps and safe reusable downloads', async ({ page }) => {
   mkdirSync('.impeccable/review', { recursive: true });
@@ -29,14 +30,13 @@ test('assignment guidance has equal tabs, reason-specific steps and safe reusabl
   await expect(page.locator('.document-download svg')).toHaveCount(3);
   await expect(page.locator('.document-download[href]')).toHaveCount(0);
 
-  // Serve fictional bytes at the future public paths; do not invent or publish
-  // the actual course assignment or official evidence forms.
+  // Keep missing-file and MIME handling independent of real document contents.
   documentsReady = true;
   await page.reload();
   await choose('타 수업/시험과 중복');
   const links = page.locator('.document-download[href]');
   await expect(links).toHaveCount(3);
-  expect(await links.evaluateAll(elements => elements.map(element => element.getAttribute('href')))).toEqual(['/documents/assignment.docx', '/documents/absence-reason.docx', '/documents/class-confirmation.pdf']);
+  expect(await links.evaluateAll(elements => elements.map(element => element.getAttribute('href')))).toEqual(['/documents/대체과제.docx', '/documents/불참사유서.docx', '/documents/수업증빙서.pdf']);
   expect(await links.evaluateAll(elements => elements.every(element => element.hasAttribute('download') && element.firstElementChild.tagName.toLowerCase() === 'svg'))).toBe(true);
   await expect(page.locator('.assignment-steps>li')).toHaveCount(5);
   await expect(page.locator('.assignment-steps>li').nth(2)).toContainText('시간표와 U-Check 사진');
@@ -53,7 +53,7 @@ test('assignment guidance has equal tabs, reason-specific steps and safe reusabl
   await page.setViewportSize({ width: 390, height: 844 });
   await choose('수업 조교 혹은 업무 진행');
   await expect(page.locator('.assignment-reasons [aria-pressed=true]')).toHaveCount(1);
-  await expect(page.getByRole('link', { name: '수업업무증빙서 (PDF)', exact: true })).toHaveAttribute('href', '/documents/duty-confirmation.pdf');
+  await expect(page.getByRole('link', { name: '수업업무증빙서 (PDF)', exact: true })).toHaveAttribute('href', '/documents/수업업무증빙서.pdf');
   await expect(page.getByRole('link', { name: '수업증빙서 (PDF)', exact: true })).toHaveCount(0);
   await expect(page.locator('.assignment-steps>li').nth(2)).toContainText('‘수업 조교 혹은 업무 진행’');
   await expect(page.locator('.assignment-steps>li').nth(3)).toContainText('수업업무증빙서');
@@ -75,4 +75,36 @@ test('assignment guidance has equal tabs, reason-specific steps and safe reusabl
   await expect(page.locator('.student-tabs [aria-current=page]')).toHaveText('결과 조회');
   await expect(page.getByLabel('학번', { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test('provided Korean documents download with unchanged names and original bytes', async ({ page, baseURL }) => {
+  await page.goto('/assignment');
+  const files = new Map([
+    ['대체과제 (DOCX)', '대체과제.docx'],
+    ['불참사유서 (DOCX)', '불참사유서.docx'],
+    ['수업증빙서 (PDF)', '수업증빙서.pdf'],
+    ['수업업무증빙서 (PDF)', '수업업무증빙서.pdf'],
+  ]);
+  const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+  const checked = new Set();
+  for (const reason of ['타 수업/시험과 중복', '수업 조교 혹은 업무 진행']) {
+    await page.getByRole('button', { name: reason, exact: true }).click();
+    await expect(page.locator('.document-download[href]')).toHaveCount(3);
+    for (const [label, filename] of files) {
+      if (checked.has(filename)) continue;
+      const link = page.getByRole('link', { name: label, exact: true });
+      if (!await link.count()) continue;
+      await expect(link).toHaveAttribute('href', `/documents/${filename}`);
+      const response = await page.request.head(new URL(`/documents/${encodeURIComponent(filename)}`, baseURL).href);
+      expect(response.status()).toBe(200);
+      expect(response.headers()['content-type'] || '').not.toContain('text/html');
+      const downloaded = page.waitForEvent('download');
+      await link.click();
+      const file = await downloaded;
+      expect(file.suggestedFilename()).toBe(filename);
+      expect(hash(readFileSync(await file.path()))).toBe(hash(readFileSync(`public/documents/${filename}`)));
+      checked.add(filename);
+    }
+  }
+  expect([...checked]).toEqual([...files.values()]);
 });

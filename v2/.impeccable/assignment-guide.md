@@ -24,11 +24,11 @@
 
 초기에는 선택과 상세 안내가 없다. 선택된 버튼은 녹색 면·경계·체크 표시와 `aria-pressed`로 드러낸다. 기본 버튼의 키보드 조작과 공통 초점 외곽선을 사용하며, 상세 변경은 polite live region으로 알린다.
 
-공통 다운로드 컴포넌트는 왼쪽 선형 SVG와 문서명을 표시한다. 루트 기준 `/documents/` URL을 사용하며 확인 중이거나 문서가 없으면 비활성 상태를 표시한다. 실제 과제·양식 네 파일은 추후 제공 대상이며 임의로 제작하지 않았다. 배포 경로와 로컬·원격 확인 절차는 `docs/ASSIGNMENT_GUIDE.md`, 파일 목록은 `public/documents/README.md`에 기록되어 있다.
+공통 다운로드 컴포넌트는 왼쪽 선형 SVG와 문서명을 표시한다. 루트 기준 `/documents/` URL을 사용하며 확인 중이거나 문서가 없으면 비활성 상태를 표시한다. 2026-11-03에 사용자가 제공한 실제 과제·양식 네 파일을 한글 파일명으로 연결했다. 배포 경로와 로컬·원격 확인 절차, 파일 목록은 `docs/ASSIGNMENT_GUIDE.md`에 기록되어 있다.
 
 ## 검토 기록
 
 - 코드 대조: `src/App.jsx`, `src/AssignmentGuide.jsx`, `src/DownloadButton.jsx`, `src/styles.css`를 기존 제품·디자인 문서와 비교했다. 기존 좁은 학생 흐름과 색·서체·표면·초점 처리를 유지한다.
 - 독립 finish 리뷰는 `.impeccable/review/`의 `assignment-initial-mobile.png`, `assignment-mobile.png`, `assignment-official-mobile.png`, `assignment-warning-mobile.png`, `assignment-small-mobile.png`, `assignment-desktop.png` 여섯 캡처를 검토해 **ship**으로 판정했다. 중대한 수정 사항은 없다.
-- 검토 범위는 초기·선택·공결·미해당 상태, 키보드/초점과 320·390·1440px 구성이며, 실제 문서 내용과 실제 파일 다운로드 검증은 문서 제공 후 진행한다.
+- 화면 검토 범위는 초기·선택·공결·미해당 상태, 키보드/초점과 320·390·1440px 구성이다. 문서 제공 후에는 별도 다운로드 통합 테스트로 한글 저장 이름과 파일 바이트를 확인한다.
 - 기존 디자인 문서 불일치에 대한 detector 권고는 이번 기능 확장의 범위 밖으로 남긴다. 공유 디자인 문서나 토큰 메타데이터를 갱신하지 않았다.

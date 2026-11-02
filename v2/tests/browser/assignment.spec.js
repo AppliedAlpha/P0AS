@@ -56,9 +56,14 @@ test('assignment guidance has equal tabs, reason-specific steps and safe reusabl
   await expect(page.getByRole('link', { name: '수업업무증빙서 (PDF)', exact: true })).toHaveAttribute('href', '/documents/수업업무증빙서.pdf');
   await expect(page.getByRole('link', { name: '수업증빙서 (PDF)', exact: true })).toHaveCount(0);
   await expect(page.locator('.assignment-steps>li').nth(2)).toContainText('‘수업 조교 혹은 업무 진행’');
+  await expect(page.locator('.assignment-steps>li').nth(2)).toContainText('근로내역 혹은 본인의 이름이 기재된 업무명부');
+  await expect(page.locator('.assignment-steps>li').nth(2)).not.toContainText('시간표와 U-Check 사진');
   await expect(page.locator('.assignment-steps>li').nth(3)).toContainText('수업업무증빙서');
+  await expect(page.locator('.assignment-steps>li').nth(3)).toContainText('해당 부서 담당자에게 서명받으세요.');
   await choose('기타 공적인 사유에 의한 공결 사용');
   await expect(links).toHaveCount(2);
+  await expect(page.locator('.assignment-steps>li').nth(2)).toContainText('공결서와 같은 공적 증빙 서류');
+  await expect(page.locator('.assignment-steps>li').nth(2)).not.toContainText('시간표와 U-Check 사진');
   await expect(page.locator('.assignment-steps>li').nth(3)).toContainText('학사정보시스템에서 공결 승인을 받은 뒤 공결처리요청서를 출력');
   await expect(page.locator('.assignment-steps>li').nth(3)).toContainText('이 페이지에서 다운로드할 수 없습니다');
   await page.screenshot({ path: '.impeccable/review/assignment-official-mobile.png', fullPage: true, animations: 'disabled' });
